@@ -5,8 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { inr } from "@/lib/utils";
 import { useToastStore } from "@/store/toast";
+import { useLang } from "@/hooks/use-lang";
 
 export default function PurchasesPage() {
+  const { t } = useLang();
   const [products, setProducts] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -32,7 +34,7 @@ export default function PurchasesPage() {
 
   const createPurchase = async () => {
     if (!supplierId || !productId) {
-      show("Please select a supplier and product", "error");
+      show(t.supplier + " / " + t.sareeName, "error");
       return;
     }
     try {
@@ -44,9 +46,9 @@ export default function PurchasesPage() {
       });
       setInvoiceNo("");
       load();
-      show("Purchase recorded");
+      show(t.recordPurchase + " ✓");
     } catch {
-      show("Failed to record purchase", "error");
+      show("Error", "error");
     }
   };
 
@@ -55,32 +57,32 @@ export default function PurchasesPage() {
       <Card>
         <CardContent className="grid gap-3 md:grid-cols-6">
           <select className="h-10 rounded-xl border border-brand-200 bg-white/80 px-3 text-sm" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-            <option value="">Supplier</option>
+            <option value="">{t.supplier}</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-          <Input placeholder="Invoice Number" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
+          <Input placeholder={t.invoiceNo} value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
           <select className="h-10 rounded-xl border border-brand-200 bg-white/80 px-3 text-sm" value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="">Product</option>
+            <option value="">{t.sareeName}</option>
             {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
           <Input type="number" min={1} value={costPrice} onChange={(e) => setCostPrice(Number(e.target.value))} />
-          <Button onClick={createPurchase}>Record Purchase</Button>
+          <Button onClick={createPurchase}>{t.recordPurchase}</Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent>
-          <h3 className="mb-3 font-semibold">Purchase History</h3>
+          <h3 className="mb-3 font-semibold">{t.purchaseHistory}</h3>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="text-left text-slate-600">
-                  <th className="pb-2">Date</th>
-                  <th className="pb-2">Supplier</th>
-                  <th className="pb-2">Invoice</th>
-                  <th className="pb-2">Items</th>
-                  <th className="pb-2">Total</th>
+                  <th className="pb-2">{t.purchaseDate}</th>
+                  <th className="pb-2">{t.supplier}</th>
+                  <th className="pb-2">{t.invoiceNo}</th>
+                  <th className="pb-2">{t.items}</th>
+                  <th className="pb-2">{t.total}</th>
                 </tr>
               </thead>
               <tbody>

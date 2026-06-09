@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { inr } from "@/lib/utils";
+import { useLang } from "@/hooks/use-lang";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -24,6 +25,7 @@ type FormData = z.infer<typeof schema>;
 type PriceRange = { id: string; name: string; minPrice: number; maxPrice: number; itemCount: number };
 
 export default function PriceRangesPage() {
+  const { t } = useLang();
   const [ranges, setRanges] = useState<PriceRange[]>([]);
   const [editing, setEditing] = useState<PriceRange | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -41,30 +43,30 @@ export default function PriceRangesPage() {
     try {
       if (editing) {
         await api.put(`/price-ranges/${editing.id}`, data);
-        show("Price range updated — products auto-reassigned");
+        show(t.save + " ✓");
       } else {
         await api.post("/price-ranges", data);
-        show("Price range created — products auto-assigned");
+        show(t.save + " ✓");
       }
       setModalOpen(false);
       load();
-    } catch { show("Failed to save price range", "error"); }
+    } catch { show("Error", "error"); }
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete this price range? Products will be unassigned.")) return;
+    if (!confirm(t.delete + "?")) return;
     try {
       await api.delete(`/price-ranges/${id}`);
-      show("Price range deleted");
+      show(t.delete + " ✓");
       load();
-    } catch { show("Delete failed", "error"); }
+    } catch { show("Error", "error"); }
   };
 
   const columns = [
-    { key: "name", label: "Name", sortable: true },
-    { key: "minPrice", label: "Min Price", render: (r: PriceRange) => inr(r.minPrice) },
-    { key: "maxPrice", label: "Max Price", render: (r: PriceRange) => inr(r.maxPrice) },
-    { key: "itemCount", label: "Items", render: (r: PriceRange) => <span className="font-semibold text-brand-700">{r.itemCount}</span> },
+    { key: "name", label: t.name, sortable: true },
+    { key: "minPrice", label: t.minPrice, render: (r: PriceRange) => inr(r.minPrice) },
+    { key: "maxPrice", label: t.maxPrice, render: (r: PriceRange) => inr(r.maxPrice) },
+    { key: "itemCount", label: t.items, render: (r: PriceRange) => <span className="font-semibold text-brand-700">{r.itemCount}</span> },
     { key: "actions", label: "", render: (r: PriceRange) => (
       <div className="flex gap-2">
         <Button size="sm" variant="secondary" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
@@ -75,26 +77,26 @@ export default function PriceRangesPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Price Ranges" subtitle="Define segments — items are auto-assigned by selling price" actions={<Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />Add Range</Button>} />
-      <Card><CardContent><DataTable columns={columns} data={ranges} searchable searchPlaceholder="Search ranges..." searchKeys={["name"]} /></CardContent></Card>
+      <PageHeader title={t.priceGroups} subtitle={t.priceGroups} actions={<Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />{t.addPriceGroup}</Button>} />
+      <Card><CardContent><DataTable columns={columns} data={ranges} searchable searchPlaceholder={t.search} searchKeys={["name"]} /></CardContent></Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Price Range" : "Add Price Range"}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? t.editPriceGroup : t.addPriceGroup}>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <FormField label="Range Name" required error={errors.name?.message}>
+          <FormField label={t.rangeNameLabel} required error={errors.name?.message}>
             <Input {...register("name")} placeholder="e.g. Budget, Premium" />
           </FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Min Price (₹)" required error={errors.minPrice?.message}>
+            <FormField label={t.minPrice} required error={errors.minPrice?.message}>
               <Input type="number" min={0} {...register("minPrice")} placeholder="0" />
             </FormField>
-            <FormField label="Max Price (₹)" required error={errors.maxPrice?.message}>
+            <FormField label={t.maxPrice} required error={errors.maxPrice?.message}>
               <Input type="number" min={1} {...register("maxPrice")} placeholder="999" />
             </FormField>
           </div>
-          <p className="text-xs text-slate-500">All products with selling price in this range will be auto-assigned when saved.</p>
+          <p className="text-xs text-slate-500">{t.autoAssignNote}</p>
           <div className="flex gap-3 pt-2">
-            <Button type="submit" className="flex-1">{editing ? "Save Changes" : "Create Range"}</Button>
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button type="submit" className="flex-1">{editing ? t.save : t.addPriceGroup}</Button>
+            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>{t.cancel}</Button>
           </div>
         </form>
       </Modal>

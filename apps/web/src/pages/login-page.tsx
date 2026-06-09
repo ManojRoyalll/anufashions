@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/store/auth";
+import { useLang } from "@/hooks/use-lang";
 
 export default function LoginPage() {
+  const { t } = useLang();
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const loading = useAuthStore((s) => s.loading);
@@ -18,11 +20,11 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardContent className="space-y-4 p-6">
           <div>
-            <h1 className="text-2xl font-bold text-brand-700">Business Login</h1>
+            <h1 className="text-2xl font-bold text-brand-700">{t.welcome}</h1>
             <p className="text-sm text-slate-600">Sarees & Ladies Wear Retail Manager</p>
           </div>
 
-          <Input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input placeholder={t.email} value={email} onChange={(e) => setEmail(e.target.value)} />
           <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -40,7 +42,7 @@ export default function LoginPage() {
               }
             }}
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? t.loading : "Sign In"}
           </Button>
         </CardContent>
       </Card>

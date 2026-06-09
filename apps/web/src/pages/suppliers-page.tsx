@@ -14,6 +14,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { inr } from "@/lib/utils";
+import { useLang } from "@/hooks/use-lang";
 
 const schema = z.object({
   name: z.string().min(2, "Name required"),
@@ -27,6 +28,7 @@ type FormData = z.infer<typeof schema>;
 type Supplier = { id: string; name: string; phone?: string; email?: string; address?: string; outstandingPayments: number };
 
 export default function SuppliersPage() {
+  const { t } = useLang();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -42,25 +44,25 @@ export default function SuppliersPage() {
 
   const onSubmit = async (data: FormData) => {
     try {
-      if (editing) { await api.put(`/suppliers/${editing.id}`, data); show("Supplier updated"); }
-      else { await api.post("/suppliers", data); show("Supplier added"); }
+      if (editing) { await api.put(`/suppliers/${editing.id}`, data); show(t.save + " ✓"); }
+      else { await api.post("/suppliers", data); show(t.save + " ✓"); }
       setModalOpen(false);
       load();
-    } catch { show("Failed to save supplier", "error"); }
+    } catch { show("Error", "error"); }
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete this supplier?")) return;
-    try { await api.delete(`/suppliers/${id}`); show("Supplier deleted"); load(); }
-    catch { show("Cannot delete — supplier has products", "error"); }
+    if (!confirm(t.delete + "?")) return;
+    try { await api.delete(`/suppliers/${id}`); show(t.delete + " ✓"); load(); }
+    catch { show("Error", "error"); }
   };
 
   const columns = [
-    { key: "name", label: "Name", sortable: true },
-    { key: "phone", label: "Phone" },
-    { key: "email", label: "Email" },
-    { key: "address", label: "Address" },
-    { key: "outstandingPayments", label: "Outstanding", render: (s: Supplier) => inr(s.outstandingPayments) },
+    { key: "name", label: t.name, sortable: true },
+    { key: "phone", label: t.phone },
+    { key: "email", label: t.email },
+    { key: "address", label: t.address },
+    { key: "outstandingPayments", label: t.outstanding, render: (s: Supplier) => inr(s.outstandingPayments) },
     { key: "actions", label: "", render: (s: Supplier) => (
       <div className="flex gap-2">
         <Button size="sm" variant="secondary" onClick={() => openEdit(s)}><Pencil className="h-3 w-3" /></Button>
@@ -71,21 +73,21 @@ export default function SuppliersPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Suppliers" subtitle="Manage your stock suppliers" actions={<Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />Add Supplier</Button>} />
-      <Card><CardContent><DataTable columns={columns} data={suppliers} searchable searchPlaceholder="Search suppliers..." searchKeys={["name"]} /></CardContent></Card>
+      <PageHeader title={t.suppliers} subtitle={t.suppliers} actions={<Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />{t.addSupplier}</Button>} />
+      <Card><CardContent><DataTable columns={columns} data={suppliers} searchable searchPlaceholder={t.search} searchKeys={["name"]} /></CardContent></Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Supplier" : "Add Supplier"}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? t.editSupplier : t.addSupplier}>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <FormField label="Name" required error={errors.name?.message}><Input {...register("name")} placeholder="Supplier name" /></FormField>
+          <FormField label={t.name} required error={errors.name?.message}><Input {...register("name")} placeholder="Supplier name" /></FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Phone" error={errors.phone?.message}><Input {...register("phone")} placeholder="Phone number" /></FormField>
-            <FormField label="Email" error={errors.email?.message}><Input {...register("email")} placeholder="email@example.com" /></FormField>
+            <FormField label={t.phone} error={errors.phone?.message}><Input {...register("phone")} placeholder="Phone number" /></FormField>
+            <FormField label={t.email} error={errors.email?.message}><Input {...register("email")} placeholder="email@example.com" /></FormField>
           </div>
-          <FormField label="Address" error={errors.address?.message}><Textarea {...register("address")} placeholder="Address" /></FormField>
-          <FormField label="Products Supplied" error={errors.productsSupplied?.message}><Input {...register("productsSupplied")} placeholder="e.g. Sarees, Suits" /></FormField>
+          <FormField label={t.address} error={errors.address?.message}><Textarea {...register("address")} placeholder="Address" /></FormField>
+          <FormField label={t.productsSupplied} error={errors.productsSupplied?.message}><Input {...register("productsSupplied")} placeholder="e.g. Sarees, Suits" /></FormField>
           <div className="flex gap-3 pt-2">
-            <Button type="submit" className="flex-1">{editing ? "Save Changes" : "Add Supplier"}</Button>
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button type="submit" className="flex-1">{editing ? t.save : t.addSupplier}</Button>
+            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>{t.cancel}</Button>
           </div>
         </form>
       </Modal>
