@@ -18,20 +18,13 @@ export interface DashboardPayload {
   };
 }
 
-export interface AnalyticsPoint {
-  date?: string;
-  month?: string;
-  name?: string;
-  value?: number;
-  quantity?: number;
-}
-
-export interface Product {
-  id: string;
-  code: string;
-  name: string;
-  purchasePrice: number;
-  sellingPrice: number;
-  quantity: number;
-  category?: { name: string };
+export interface AnalyticsPayload {
+  dailySalesTrend: { date: string; value: number }[];
+  categoryWiseProfit: { name: string; value: number }[];
+  inventoryDistribution: { name: string; value: number }[];
+  topSellingProducts: { name: string; quantity: number }[];
+  notifications: {
+    lowStock: { id: string; name: string; quantity: number }[];
+    outOfStock: { id: string; name: string; quantity: number }[];
+  };
 }
