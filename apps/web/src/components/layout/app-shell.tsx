@@ -1,25 +1,13 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, Box, ShoppingCart, ShoppingBag, Wallet,
-  Users, Truck, FileText, Menu, LogOut, Tag, Layers
+  ShoppingCart, LayoutDashboard, Box, ShoppingBag,
+  Truck, Tag, Layers, FileText, Menu, LogOut
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useAppStore } from "@/store/app";
+import { useLang } from "@/hooks/use-lang";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/products", label: "Products", icon: Box },
-  { to: "/sales", label: "Sales POS", icon: ShoppingCart },
-  { to: "/purchases", label: "Purchases", icon: ShoppingBag },
-  { to: "/expenses", label: "Expenses", icon: Wallet },
-  { to: "/customers", label: "Customers", icon: Users },
-  { to: "/suppliers", label: "Suppliers", icon: Truck },
-  { to: "/categories", label: "Categories", icon: Tag },
-  { to: "/price-ranges", label: "Price Ranges", icon: Layers },
-  { to: "/reports", label: "Reports", icon: FileText }
-];
 
 export default function AppShell() {
   const navigate = useNavigate();
@@ -27,6 +15,18 @@ export default function AppShell() {
   const user = useAuthStore((s) => s.user);
   const mobileOpen = useAppStore((s) => s.mobileOpen);
   const setMobileOpen = useAppStore((s) => s.setMobileOpen);
+  const { t, lang, toggle } = useLang();
+
+  const nav = [
+    { to: "/", label: t.sell, sub: "అమ్మకం", icon: ShoppingCart },
+    { to: "/dashboard", label: t.dashboard, sub: "సారాంశం", icon: LayoutDashboard },
+    { to: "/products", label: t.myStock, sub: "నా సరుకు", icon: Box },
+    { to: "/purchases", label: t.boughtStock, sub: "కొన్న సరుకు", icon: ShoppingBag },
+    { to: "/suppliers", label: t.suppliers, sub: "సరఫరాదారులు", icon: Truck },
+    { to: "/categories", label: t.types, sub: "రకాలు", icon: Tag },
+    { to: "/price-ranges", label: t.priceGroups, sub: "ధర గుంపులు", icon: Layers },
+    { to: "/reports", label: t.reports, sub: "నివేదికలు", icon: FileText },
+  ];
 
   return (
     <div className="min-h-screen md:grid md:grid-cols-[260px_1fr]">
@@ -50,8 +50,13 @@ export default function AppShell() {
                 isActive ? "bg-brand-100 text-brand-800" : "text-slate-600 hover:bg-brand-50 hover:text-brand-700"
               )}
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              <item.icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 leading-tight">
+                <span className="block">{item.label}</span>
+                {lang === "en" && (
+                  <span className="block text-xs text-slate-400 font-normal">{item.sub}</span>
+                )}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -63,11 +68,26 @@ export default function AppShell() {
             <button className="md:hidden" onClick={() => setMobileOpen(true)}>
               <Menu className="h-5 w-5" />
             </button>
-            <p className="text-sm text-slate-600">Welcome, <span className="font-semibold text-brand-700">{user?.name || "Owner"}</span></p>
+            <p className="text-sm text-slate-600">
+              {t.welcome}, <span className="font-semibold text-brand-700">{user?.name || "Owner"}</span>
+            </p>
           </div>
-          <Button variant="secondary" onClick={() => { logout(); navigate("/login"); }}>
-            <LogOut className="mr-2 h-4 w-4" />Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggle}
+              className="flex items-center gap-0.5 rounded-full border border-brand-200 bg-white px-1 py-1 text-xs font-semibold shadow-sm"
+            >
+              <span className={cn("rounded-full px-2.5 py-1 transition", lang === "en" ? "bg-brand-700 text-white" : "text-slate-500")}>
+                EN
+              </span>
+              <span className={cn("rounded-full px-2.5 py-1 transition", lang === "te" ? "bg-brand-700 text-white" : "text-slate-500")}>
+                తె
+              </span>
+            </button>
+            <Button variant="secondary" onClick={() => { logout(); navigate("/login"); }}>
+              <LogOut className="mr-2 h-4 w-4" />{t.logout}
+            </Button>
+          </div>
         </header>
         <Outlet />
       </main>
