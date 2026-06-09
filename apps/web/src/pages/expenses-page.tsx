@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { inr } from "@/lib/utils";
+import { useToastStore } from "@/store/toast";
 
 const types = ["RENT", "ELECTRICITY", "TRANSPORT", "MARKETING", "SALARY", "PACKAGING", "MISC"];
 
@@ -12,6 +13,7 @@ export default function ExpensesPage() {
   const [type, setType] = useState("RENT");
   const [amount, setAmount] = useState(0);
   const [description, setDescription] = useState("");
+  const { show } = useToastStore();
 
   const load = () => api.get("/expenses").then((r) => setExpenses(r.data));
 
@@ -20,15 +22,20 @@ export default function ExpensesPage() {
   }, []);
 
   const submit = async () => {
-    await api.post("/expenses", {
-      date: new Date().toISOString(),
-      type,
-      amount,
-      description
-    });
-    setAmount(0);
-    setDescription("");
-    load();
+    try {
+      await api.post("/expenses", {
+        date: new Date().toISOString(),
+        type,
+        amount,
+        description
+      });
+      setAmount(0);
+      setDescription("");
+      load();
+      show("Expense added");
+    } catch {
+      show("Failed to add expense", "error");
+    }
   };
 
   return (

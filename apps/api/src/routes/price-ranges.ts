@@ -11,15 +11,6 @@ const schema = z.object({
   maxPrice: z.number().nonnegative()
 });
 
-async function autoAssign(rangeId: string, minPrice: number, maxPrice: number) {
-  await prisma.product.updateMany({
-    where: {
-      sellingPrice: { gte: minPrice, lte: maxPrice }
-    },
-    data: { priceRangeId: rangeId }
-  });
-}
-
 priceRangesRouter.get("/", async (_req, res, next) => {
   try {
     const ranges = await prisma.priceRange.findMany({ orderBy: { minPrice: "asc" } });
@@ -35,8 +26,11 @@ priceRangesRouter.get("/", async (_req, res, next) => {
 priceRangesRouter.post("/", async (req, res, next) => {
   try {
     const body = schema.parse(req.body);
-    const range = await prisma.priceRange.create({ data: { name: body.name, minPrice: body.minPrice, maxPrice: body.maxPrice } });
-    await autoAssign(range.id, body.minPrice, body.maxPrice);
+    const range = await prisma.$transaction(async (tx) => {
+      const r = await tx.priceRange.create({ data: { name: body.name, minPrice: body.minPrice, maxPrice: body.maxPrice } });
+      await tx.product.updateMany({ where: { sellingPrice: { gte: body.minPrice, lte: body.maxPrice } }, data: { priceRangeId: r.id } });
+      return r;
+    });
     res.status(201).json({ ...range, minPrice: toNumber(range.minPrice), maxPrice: toNumber(range.maxPrice) });
   } catch (err) { next(err); }
 });
@@ -44,8 +38,11 @@ priceRangesRouter.post("/", async (req, res, next) => {
 priceRangesRouter.put("/:id", async (req, res, next) => {
   try {
     const body = schema.parse(req.body);
-    const range = await prisma.priceRange.update({ where: { id: req.params.id }, data: { name: body.name, minPrice: body.minPrice, maxPrice: body.maxPrice } });
-    await autoAssign(range.id, body.minPrice, body.maxPrice);
+    const range = await prisma.$transaction(async (tx) => {
+      const r = await tx.priceRange.update({ where: { id: req.params.id }, data: { name: body.name, minPrice: body.minPrice, maxPrice: body.maxPrice } });
+      await tx.product.updateMany({ where: { sellingPrice: { gte: body.minPrice, lte: body.maxPrice } }, data: { priceRangeId: r.id } });
+      return r;
+    });
     res.json({ ...range, minPrice: toNumber(range.minPrice), maxPrice: toNumber(range.maxPrice) });
   } catch (err) { next(err); }
 });

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { inr } from "@/lib/utils";
+import { useToastStore } from "@/store/toast";
 
 export default function PurchasesPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -15,6 +16,7 @@ export default function PurchasesPage() {
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [costPrice, setCostPrice] = useState(0);
+  const { show } = useToastStore();
 
   const load = () => {
     Promise.all([api.get("/products"), api.get("/suppliers"), api.get("/purchases")]).then(([p, s, h]) => {
@@ -29,14 +31,23 @@ export default function PurchasesPage() {
   }, []);
 
   const createPurchase = async () => {
-    await api.post("/purchases", {
-      purchaseDate: new Date().toISOString(),
-      supplierId,
-      invoiceNo,
-      items: [{ productId, quantity, costPrice }]
-    });
-    setInvoiceNo("");
-    load();
+    if (!supplierId || !productId) {
+      show("Please select a supplier and product", "error");
+      return;
+    }
+    try {
+      await api.post("/purchases", {
+        purchaseDate: new Date().toISOString(),
+        supplierId,
+        invoiceNo,
+        items: [{ productId, quantity, costPrice }]
+      });
+      setInvoiceNo("");
+      load();
+      show("Purchase recorded");
+    } catch {
+      show("Failed to record purchase", "error");
+    }
   };
 
   return (

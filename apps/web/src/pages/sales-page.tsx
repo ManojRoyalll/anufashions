@@ -47,12 +47,13 @@ export default function SalesPage() {
 
   const checkout = async () => {
     if (cart.length === 0) return;
+    const safeDiscount = Math.min(discount, subtotal);
     try {
       await api.post("/sales", {
         saleDate: new Date().toISOString(),
         customerId: customerId || undefined,
         paymentMethod,
-        discount,
+        discount: safeDiscount,
         gst,
         items: cart.map(({ productId, quantity, unitPrice }) => ({ productId, quantity, unitPrice }))
       });
@@ -121,7 +122,7 @@ export default function SalesPage() {
           </select>
 
           <div className="grid grid-cols-2 gap-2">
-            <Input type="number" placeholder="Discount (₹)" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} />
+            <Input type="number" min={0} placeholder="Discount (₹)" value={discount} onChange={(e) => setDiscount(Math.min(Number(e.target.value), subtotal))} />
             <Input type="number" placeholder="GST (₹)" value={gst} onChange={(e) => setGst(Number(e.target.value))} />
           </div>
 

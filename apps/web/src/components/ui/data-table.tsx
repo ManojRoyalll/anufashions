@@ -44,9 +44,16 @@ export function DataTable<T extends { id: string }>({
 
   const sorted = sortKey
     ? [...filtered].sort((a, b) => {
-        const av = String((a as Record<string, unknown>)[sortKey] ?? "");
-        const bv = String((b as Record<string, unknown>)[sortKey] ?? "");
-        return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+        const av = (a as Record<string, unknown>)[sortKey] ?? "";
+        const bv = (b as Record<string, unknown>)[sortKey] ?? "";
+        const an = Number(av);
+        const bn = Number(bv);
+        if (!isNaN(an) && !isNaN(bn)) {
+          return sortDir === "asc" ? an - bn : bn - an;
+        }
+        return sortDir === "asc"
+          ? String(av).localeCompare(String(bv))
+          : String(bv).localeCompare(String(av));
       })
     : filtered;
 

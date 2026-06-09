@@ -40,6 +40,8 @@ type Product = {
   id: string; code: string; name: string; quantity: number;
   purchasePrice: number; sellingPrice: number; margin: number; profitPercentage: number;
   discountLimit?: number; stockStatus: string;
+  categoryId: string; supplierId?: string; priceRangeId?: string;
+  imageUrl?: string; color?: string; size?: string; material?: string; mrp?: number; notes?: string;
   category?: { name: string }; supplier?: { name: string }; priceRange?: { name: string };
 };
 
@@ -101,9 +103,21 @@ export default function ProductsPage() {
   const openEdit = (p: Product) => {
     setEditing(p);
     reset({
-      code: p.code, name: p.name, categoryId: p.category ? categories.find(c => c.name === p.category?.name)?.id ?? "" : "",
-      purchasePrice: p.purchasePrice, sellingPrice: p.sellingPrice, quantity: p.quantity,
-      discountLimit: p.discountLimit ?? 30
+      code: p.code,
+      name: p.name,
+      categoryId: p.categoryId,
+      supplierId: p.supplierId ?? "",
+      priceRangeId: p.priceRangeId ?? "",
+      purchasePrice: p.purchasePrice,
+      sellingPrice: p.sellingPrice,
+      quantity: p.quantity,
+      discountLimit: p.discountLimit ?? 30,
+      mrp: p.mrp,
+      color: p.color ?? "",
+      size: p.size ?? "",
+      material: p.material ?? "",
+      imageUrl: p.imageUrl ?? "",
+      notes: p.notes ?? ""
     });
     setModalOpen(true);
   };
