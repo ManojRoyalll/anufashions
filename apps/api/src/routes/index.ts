@@ -11,6 +11,7 @@ import { purchasesRouter } from "./purchases";
 import { reportsRouter } from "./reports";
 import { salesRouter } from "./sales";
 import { suppliersRouter } from "./suppliers";
+import { priceRangesRouter } from "./price-ranges";
 
 export const router = Router();
 
@@ -18,6 +19,7 @@ router.use("/auth", authRouter);
 router.use(authMiddleware);
 
 router.use("/categories", categoriesRouter);
+router.use("/price-ranges", priceRangesRouter);
 router.use("/products", productsRouter);
 router.use("/suppliers", suppliersRouter);
 router.use("/customers", customersRouter);

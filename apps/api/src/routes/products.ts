@@ -15,6 +15,8 @@ const productSchema = z.object({
   sellingPrice: z.number().nonnegative(),
   mrp: z.number().nonnegative().optional(),
   supplierId: z.string().optional(),
+  priceRangeId: z.string().optional(),
+  discountLimit: z.number().min(0).max(100).optional(),
   color: z.string().optional(),
   size: z.string().optional(),
   material: z.string().optional(),
@@ -46,7 +48,8 @@ productsRouter.get("/", async (req, res, next) => {
       },
       include: {
         category: true,
-        supplier: true
+        supplier: true,
+        priceRange: true
       },
       orderBy: { createdAt: "desc" }
     });
@@ -77,12 +80,15 @@ productsRouter.post("/", async (req, res, next) => {
         barcode: body.barcode || null,
         mrp: body.mrp ?? null,
         supplierId: body.supplierId || null,
+        priceRangeId: body.priceRangeId || null,
+        discountLimit: body.discountLimit ?? null,
         datePurchased: body.datePurchased ? new Date(body.datePurchased) : null,
         stockStatus: body.quantity <= 0 ? "OUT_OF_STOCK" : body.quantity <= 5 ? "LOW_STOCK" : "IN_STOCK"
       },
       include: {
         category: true,
-        supplier: true
+        supplier: true,
+        priceRange: true
       }
     });
 
@@ -109,11 +115,14 @@ productsRouter.put("/:id", async (req, res, next) => {
       data: {
         ...body,
         datePurchased: body.datePurchased ? new Date(body.datePurchased) : undefined,
+        priceRangeId: body.priceRangeId !== undefined ? body.priceRangeId || null : undefined,
+        discountLimit: body.discountLimit !== undefined ? body.discountLimit : undefined,
         stockStatus
       },
       include: {
         category: true,
-        supplier: true
+        supplier: true,
+        priceRange: true
       }
     });
 
