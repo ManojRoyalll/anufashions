@@ -1,0 +1,97 @@
+<h2>How should the "Add Item" form be presented?</h2>
+<p class="subtitle">You'll use this frequently — pick the layout that feels most comfortable to fill in</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="drawer" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f5f0e8;padding:16px;border-radius:8px;position:relative;overflow:hidden;min-height:180px;">
+      <!-- Main page dimmed -->
+      <div style="background:#e8e2d8;border-radius:8px;padding:10px;opacity:0.5;">
+        <div style="height:10px;background:#c8c0b0;border-radius:4px;margin-bottom:6px;width:60%;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+          <div style="height:48px;background:#d8d0c0;border-radius:6px;"></div>
+          <div style="height:48px;background:#d8d0c0;border-radius:6px;"></div>
+          <div style="height:48px;background:#d8d0c0;border-radius:6px;"></div>
+        </div>
+      </div>
+      <!-- Drawer sliding in from right -->
+      <div style="position:absolute;top:0;right:0;bottom:0;width:55%;background:white;border-left:2px solid #e0d8c8;padding:12px;box-shadow:-4px 0 16px rgba(0,0,0,0.1);border-radius:0 8px 8px 0;">
+        <div style="font-weight:700;font-size:12px;color:#3d4a22;margin-bottom:10px;">Add New Item</div>
+        <div style="background:#f5f0e8;border-radius:6px;height:22px;margin-bottom:6px;"></div>
+        <div style="background:#f5f0e8;border-radius:6px;height:22px;margin-bottom:6px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
+          <div style="background:#f5f0e8;border-radius:6px;height:22px;"></div>
+          <div style="background:#f5f0e8;border-radius:6px;height:22px;"></div>
+        </div>
+        <div style="background:#f5f0e8;border-radius:6px;height:22px;margin-bottom:8px;"></div>
+        <div style="background:#7f8a44;border-radius:6px;padding:5px;color:white;font-size:10px;font-weight:600;text-align:center;">Save Item</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Side Drawer</h3>
+      <p>Form slides in from the right, product list stays visible in the background. Quick to open and close. Best for frequent use.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="modal" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f5f0e8;padding:16px;border-radius:8px;position:relative;overflow:hidden;min-height:180px;">
+      <!-- Dimmed background -->
+      <div style="background:#e8e2d8;border-radius:8px;padding:10px;opacity:0.4;">
+        <div style="height:10px;background:#c8c0b0;border-radius:4px;margin-bottom:6px;width:60%;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+          <div style="height:48px;background:#d8d0c0;border-radius:6px;"></div>
+          <div style="height:48px;background:#d8d0c0;border-radius:6px;"></div>
+          <div style="height:48px;background:#d8d0c0;border-radius:6px;"></div>
+        </div>
+      </div>
+      <!-- Centred modal -->
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border-radius:12px;padding:14px;width:75%;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+        <div style="font-weight:700;font-size:12px;color:#3d4a22;margin-bottom:8px;">Add New Item</div>
+        <div style="background:#f5f0e8;border-radius:6px;height:20px;margin-bottom:5px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:5px;">
+          <div style="background:#f5f0e8;border-radius:6px;height:20px;"></div>
+          <div style="background:#f5f0e8;border-radius:6px;height:20px;"></div>
+        </div>
+        <div style="background:#f5f0e8;border-radius:6px;height:20px;margin-bottom:8px;"></div>
+        <div style="background:#7f8a44;border-radius:6px;padding:5px;color:white;font-size:10px;font-weight:600;text-align:center;">Save Item</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Centred Modal (Pop-up)</h3>
+      <p>A focused pop-up dialog. Background is dimmed. Clean and familiar — draws full attention to the form.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="fullpage" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f5f0e8;padding:16px;border-radius:8px;min-height:180px;">
+      <!-- Full page form -->
+      <div style="background:white;border-radius:8px;padding:12px;border:1px solid #e0d8c8;">
+        <div style="font-weight:700;font-size:12px;color:#3d4a22;margin-bottom:10px;border-bottom:1px solid #f0e8d8;padding-bottom:6px;">Add New Item</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+          <div>
+            <div style="font-size:9px;color:#7f8a44;margin-bottom:3px;">Item Name</div>
+            <div style="background:#f5f0e8;border-radius:6px;height:20px;"></div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#7f8a44;margin-bottom:3px;">Category</div>
+            <div style="background:#f5f0e8;border-radius:6px;height:20px;"></div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#7f8a44;margin-bottom:3px;">Buy Price</div>
+            <div style="background:#f5f0e8;border-radius:6px;height:20px;"></div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#7f8a44;margin-bottom:3px;">Sell Price</div>
+            <div style="background:#f5f0e8;border-radius:6px;height:20px;"></div>
+          </div>
+        </div>
+        <div style="background:#7f8a44;border-radius:6px;padding:5px;color:white;font-size:10px;font-weight:600;text-align:center;margin-top:4px;">Save Item</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Full Page Form</h3>
+      <p>Dedicated page for adding items — no overlay. Plenty of space for all fields including image upload. Best for entering many details at once.</p>
+    </div>
+  </div>
+
+</div>

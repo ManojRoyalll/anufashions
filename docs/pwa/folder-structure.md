@@ -1,0 +1,33 @@
+# Folder Structure
+
+```text
+apps/pwa/
+  prisma/
+    schema.prisma
+    seed.ts
+  public/
+    manifest.json
+    icon.svg
+    icon-maskable.svg
+  src/
+    app/
+      (auth)/login/
+      (dashboard)/
+      api/
+    components/
+      layout/
+      ui/
+      dashboard/
+    lib/
+      auth.ts
+      prisma.ts
+      i18n.ts
+      utils.ts
+    locales/
+      en.json
+      te.json
+    providers/
+      app-providers.tsx
+    store/
+      use-ui-store.ts
+```

@@ -1,0 +1,12 @@
+node_modules
+.env
+.env.*
+.DS_Store
+coverage
+dist
+apps/*/dist
+apps/*/node_modules
+apps/*/.env
+apps/web/.vite
+apps/web/build
+apps/api/generated

@@ -1,0 +1,14 @@
+{
+  "name": "Anu Fashions Retail Manager",
+  "short_name": "AnuFashions",
+  "description": "Mobile-first retail management app",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f6ef",
+  "theme_color": "#7f8a44",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
