@@ -95,3 +95,13 @@ purchasesRouter.post("/", async (req, res, next) => {
     next(error);
   }
 });
+
+purchasesRouter.delete("/:id", async (req, res, next) => {
+  try {
+    await prisma.purchaseItem.deleteMany({ where: { purchaseId: req.params.id } });
+    await prisma.purchase.delete({ where: { id: req.params.id } });
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});

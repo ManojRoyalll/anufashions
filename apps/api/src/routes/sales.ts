@@ -135,3 +135,13 @@ salesRouter.post("/", async (req, res, next) => {
     next(error);
   }
 });
+
+salesRouter.delete("/:id", async (req, res, next) => {
+  try {
+    await prisma.saleItem.deleteMany({ where: { saleId: req.params.id } });
+    await prisma.sale.delete({ where: { id: req.params.id } });
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});

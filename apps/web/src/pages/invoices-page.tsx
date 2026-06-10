@@ -90,6 +90,15 @@ export default function InvoicesPage() {
     }
   };
 
+  const deleteInvoice = async (id: string) => {
+    if (!confirm("Delete this invoice?")) return;
+    try {
+      await api.delete(`/purchases/${id}`);
+      show(t.delete + " ✓");
+      load();
+    } catch { show("Error", "error"); }
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -220,6 +229,7 @@ export default function InvoicesPage() {
                     <th className="pb-2 font-semibold">{t.invoiceNo}</th>
                     <th className="pb-2 font-semibold text-right">{t.items}</th>
                     <th className="pb-2 font-semibold text-right">{t.total}</th>
+                    <th className="pb-2"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -229,7 +239,12 @@ export default function InvoicesPage() {
                       <td className="font-medium">{h.supplier?.name ?? "-"}</td>
                       <td className="text-slate-500">{h.invoiceNo || "-"}</td>
                       <td className="text-right">{h.items.length}</td>
-                      <td className="text-right font-semibold text-brand-800">{inr(h.totalAmount)}</td>
+                      <td className="text-right font-semibold text-brand-800">{inr(Number(h.totalAmount))}</td>
+                      <td className="text-right">
+                        <button onClick={() => deleteInvoice(h.id)} className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

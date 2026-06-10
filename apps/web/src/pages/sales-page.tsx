@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, X, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -252,6 +252,15 @@ export default function SalesPage() {
         : `https://wa.me/?text=${text}`,
       "_blank"
     );
+  };
+
+  const deleteSale = async (id: string) => {
+    if (!confirm("Delete this sale entry?")) return;
+    try {
+      await api.delete(`/sales/${id}`);
+      show(t.delete + " ✓");
+      loadHistory(period);
+    } catch { show("Error", "error"); }
   };
 
   const periodLabel: Record<HistoryPeriod, string> = {
@@ -642,7 +651,12 @@ export default function SalesPage() {
                       {" · "}{sale.paymentMethod === "CASH" ? t.cash : sale.paymentMethod === "UPI" ? t.upi : t.card}
                     </p>
                   </div>
-                  <p className="font-bold text-brand-800">{inr(Number(sale.totalAmount))}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-brand-800">{inr(Number(sale.totalAmount))}</p>
+                    <button onClick={() => deleteSale(sale.id)} className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
