@@ -165,11 +165,20 @@ export default function SalesPage() {
         if (selectedCustomer) {
           customerId = selectedCustomer.id;
         } else {
-          const res = await api.post("/customers", {
-            name: newCustomerName.trim() || "Customer",
-            phone: newCustomerPhone.trim() || undefined
-          });
-          customerId = res.data.id;
+          // Check if phone already exists to avoid duplicate
+          const phone = newCustomerPhone.trim();
+          const existing = phone
+            ? allCustomers.find((c) => c.phone === phone)
+            : null;
+          if (existing) {
+            customerId = existing.id;
+          } else {
+            const res = await api.post("/customers", {
+              name: newCustomerName.trim() || "Customer",
+              phone: phone || undefined
+            });
+            customerId = res.data.id;
+          }
           await loadCustomers();
         }
       }
