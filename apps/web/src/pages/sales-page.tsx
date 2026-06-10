@@ -217,29 +217,32 @@ export default function SalesPage() {
 
   const shareOnWhatsApp = () => {
     if (!generatedBill) return;
+    const payLabel = generatedBill.payment === "CASH" ? "Cash" : generatedBill.payment === "UPI" ? "UPI" : "Card";
     const lines: string[] = [];
-    lines.push("🌸 *Anu Fashions* 🌸");
-    lines.push("─────────────────");
-    lines.push(`📅 ${generatedBill.date}`);
+    lines.push("*Anu Fashions*");
+    lines.push("_Ladies Sarees & Dress Materials_");
+    lines.push("---------------------------");
+    lines.push(`Date: ${generatedBill.date}`);
     if (generatedBill.customer) {
-      lines.push(`👤 ${generatedBill.customer.name}`);
-      if (generatedBill.customer.phone) lines.push(`📞 ${generatedBill.customer.phone}`);
+      lines.push(`Customer: *${generatedBill.customer.name}*`);
+      if (generatedBill.customer.phone) lines.push(`Mobile: ${generatedBill.customer.phone}`);
     }
-    lines.push("─────────────────");
+    lines.push("---------------------------");
     generatedBill.items.forEach((i) => {
-      lines.push(`• ${i.name}`);
-      lines.push(`  ${i.quantity} × ${inr(i.unitPrice)} = *${inr(i.quantity * i.unitPrice)}*`);
+      lines.push(`*${i.name}*`);
+      lines.push(`  ${i.quantity} pc x ${inr(i.unitPrice)}  =  ${inr(i.quantity * i.unitPrice)}`);
     });
-    lines.push("─────────────────");
+    lines.push("---------------------------");
     if (generatedBill.discount > 0) {
-      lines.push(`Subtotal: ${inr(generatedBill.subtotal)}`);
-      lines.push(`Discount: -${inr(generatedBill.discount)}`);
+      lines.push(`Subtotal : ${inr(generatedBill.subtotal)}`);
+      lines.push(`Discount : - ${inr(generatedBill.discount)}`);
+      lines.push("---------------------------");
     }
-    lines.push(`*Total: ${inr(generatedBill.total)}*`);
-    lines.push(`Payment: ${generatedBill.payment}`);
-    lines.push("─────────────────");
-    lines.push("🙏 Thank you! Please visit again 💐");
-    lines.push("ధన్యవాదాలు 🌺");
+    lines.push(`*TOTAL : ${inr(generatedBill.total)}*`);
+    lines.push(`Payment : ${payLabel}`);
+    lines.push("---------------------------");
+    lines.push("Thank you! Please visit again.");
+    lines.push("Dhanyavaadalu - ధన్యవాదాలు");
 
     const text = encodeURIComponent(lines.join("\n"));
     const phone = generatedBill.customer?.phone?.replace(/\D/g, "");
