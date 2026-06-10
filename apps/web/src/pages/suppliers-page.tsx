@@ -17,7 +17,7 @@ import { inr } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 
 const schema = z.object({
-  name: z.string().min(2, "Name required"),
+  supplierName: z.string().min(2, "Name required"),
   phone: z.string().optional(),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   address: z.string().optional(),
@@ -39,13 +39,22 @@ export default function SuppliersPage() {
   const load = () => api.get("/suppliers").then((r) => setSuppliers(r.data));
   useEffect(() => { load(); }, []);
 
-  const openAdd = () => { setEditing(null); reset({ name: "", phone: "", email: "", address: "", productsSupplied: "" }); setModalOpen(true); };
-  const openEdit = (s: Supplier) => { setEditing(s); reset({ name: s.name, phone: s.phone ?? "", email: s.email ?? "", address: s.address ?? "" }); setModalOpen(true); };
+  const openAdd = () => {
+    setEditing(null);
+    reset({ supplierName: "", phone: "", email: "", address: "", productsSupplied: "" });
+    setModalOpen(true);
+  };
+  const openEdit = (s: Supplier) => {
+    setEditing(s);
+    reset({ supplierName: s.name, phone: s.phone ?? "", email: s.email ?? "", address: s.address ?? "" });
+    setModalOpen(true);
+  };
 
   const onSubmit = async (data: FormData) => {
     try {
-      if (editing) { await api.put(`/suppliers/${editing.id}`, data); show(t.save + " ✓"); }
-      else { await api.post("/suppliers", data); show(t.save + " ✓"); }
+      const payload = { name: data.supplierName, phone: data.phone, email: data.email, address: data.address, productsSupplied: data.productsSupplied };
+      if (editing) { await api.put(`/suppliers/${editing.id}`, payload); show(t.save + " ✓"); }
+      else { await api.post("/suppliers", payload); show(t.addSupplier + " ✓"); }
       setModalOpen(false);
       load();
     } catch { show("Error", "error"); }
@@ -78,13 +87,23 @@ export default function SuppliersPage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? t.editSupplier : t.addSupplier}>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <FormField label={t.name} required error={errors.name?.message}><Input {...register("name")} placeholder="Supplier name" /></FormField>
+          <FormField label={t.name} required error={errors.supplierName?.message}>
+            <Input {...register("supplierName")} placeholder="Supplier name" autoComplete="off" />
+          </FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t.phone} error={errors.phone?.message}><Input {...register("phone")} placeholder="Phone number" /></FormField>
-            <FormField label={t.email} error={errors.email?.message}><Input {...register("email")} placeholder="email@example.com" /></FormField>
+            <FormField label={t.phone} error={errors.phone?.message}>
+              <Input {...register("phone")} placeholder="Phone number" />
+            </FormField>
+            <FormField label={t.email} error={errors.email?.message}>
+              <Input {...register("email")} placeholder="email@example.com" />
+            </FormField>
           </div>
-          <FormField label={t.address} error={errors.address?.message}><Textarea {...register("address")} placeholder="Address" /></FormField>
-          <FormField label={t.productsSupplied} error={errors.productsSupplied?.message}><Input {...register("productsSupplied")} placeholder="e.g. Sarees, Suits" /></FormField>
+          <FormField label={t.address} error={errors.address?.message}>
+            <Textarea {...register("address")} placeholder="Address" />
+          </FormField>
+          <FormField label={t.productsSupplied} error={errors.productsSupplied?.message}>
+            <Input {...register("productsSupplied")} placeholder="e.g. Sarees, Suits" />
+          </FormField>
           <div className="flex gap-3 pt-2">
             <Button type="submit" className="flex-1">{editing ? t.save : t.addSupplier}</Button>
             <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>{t.cancel}</Button>

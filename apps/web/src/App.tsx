@@ -11,6 +11,7 @@ import CategoriesPage from "@/pages/categories-page";
 import PriceRangesPage from "@/pages/price-ranges-page";
 import SuppliersPage from "@/pages/suppliers-page";
 import CustomersPage from "@/pages/customers-page";
+import AddStockPage from "@/pages/add-stock-page";
 import { useAuthStore } from "@/store/auth";
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/suppliers" element={<SuppliersPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/price-ranges" element={<PriceRangesPage />} />
+        <Route path="/add-stock" element={<AddStockPage />} />
         <Route path="/reports" element={<ReportsPage />} />
       </Route>
     </Routes>
