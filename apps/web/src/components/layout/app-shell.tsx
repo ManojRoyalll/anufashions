@@ -1,13 +1,14 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   ShoppingCart, LayoutDashboard, Box, ShoppingBag,
-  Settings, Menu, LogOut
+  Settings, Menu, LogOut, ZoomIn, ZoomOut
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useAppStore } from "@/store/app";
 import { useLang } from "@/hooks/use-lang";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
 
 export default function AppShell() {
   const navigate = useNavigate();
@@ -16,6 +17,18 @@ export default function AppShell() {
   const mobileOpen = useAppStore((s) => s.mobileOpen);
   const setMobileOpen = useAppStore((s) => s.setMobileOpen);
   const { t, lang, toggle } = useLang();
+
+  const ZOOM_LEVELS = [80, 90, 100, 110, 125, 150];
+  const savedZoom = Number(localStorage.getItem("zoom") || "100");
+  const [zoom, setZoom] = useState(savedZoom);
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${zoom}%`;
+    localStorage.setItem("zoom", String(zoom));
+  }, [zoom]);
+
+  const zoomIn = () => setZoom((z) => { const idx = ZOOM_LEVELS.indexOf(z); return idx < ZOOM_LEVELS.length - 1 ? ZOOM_LEVELS[idx + 1] : z; });
+  const zoomOut = () => setZoom((z) => { const idx = ZOOM_LEVELS.indexOf(z); return idx > 0 ? ZOOM_LEVELS[idx - 1] : z; });
 
   const nav = [
     { to: "/", label: t.sell, sub: "అమ్మకం", icon: ShoppingCart },
@@ -70,6 +83,17 @@ export default function AppShell() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Zoom controls */}
+            <div className="flex items-center gap-0.5 rounded-full border border-brand-200 bg-white px-1 py-1 shadow-sm">
+              <button onClick={zoomOut} className="rounded-full p-1 text-slate-500 hover:bg-brand-50" title="Zoom out">
+                <ZoomOut className="h-3.5 w-3.5" />
+              </button>
+              <span className="text-xs font-semibold text-slate-600 min-w-[30px] text-center">{zoom}%</span>
+              <button onClick={zoomIn} className="rounded-full p-1 text-slate-500 hover:bg-brand-50" title="Zoom in">
+                <ZoomIn className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {/* Language toggle */}
             <button
               onClick={toggle}
               className="flex items-center gap-0.5 rounded-full border border-brand-200 bg-white px-1 py-1 text-xs font-semibold shadow-sm"

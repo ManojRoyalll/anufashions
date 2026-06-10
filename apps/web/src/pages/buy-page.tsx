@@ -36,6 +36,7 @@ export default function BuyPage() {
   // Invoice
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [invoiceNo, setInvoiceNo] = useState("");
+  const [invoiceTotalAmount, setInvoiceTotalAmount] = useState("");
   const [billPhoto, setBillPhoto] = useState<string | undefined>();
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
 
@@ -171,6 +172,7 @@ export default function BuyPage() {
       // Reset form
       setItems([emptyItem()]);
       setInvoiceNo("");
+      setInvoiceTotalAmount("");
       setBillPhoto(undefined);
       setSelectedSupplier(null);
       setNewSupplierName("");
@@ -271,6 +273,15 @@ export default function BuyPage() {
                 <div>
                   <p className="text-xs text-slate-500 mb-1">{t.invoiceNo}</p>
                   <Input placeholder="INV-2026-001" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} autoComplete="off" />
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-500 mb-1">Invoice Bill Total (₹) <span className="text-brand-600">— including GST / actual amount paid</span></p>
+                  <Input type="number" placeholder="Enter total amount on the invoice bill" value={invoiceTotalAmount} onChange={(e) => setInvoiceTotalAmount(e.target.value)} />
+                  {invoiceTotalAmount && totalInvestment > 0 && Math.abs(Number(invoiceTotalAmount) - totalInvestment) > 1 && (
+                    <p className="text-xs mt-1 text-terra-600 font-medium">
+                      Difference: {Number(invoiceTotalAmount) > totalInvestment ? "+" : ""}{(Number(invoiceTotalAmount) - totalInvestment).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })} (likely GST / transport charges)
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <p className="text-xs text-slate-500 mb-1">{t.billPhoto}</p>
