@@ -28,3 +28,18 @@ export interface AnalyticsPayload {
     outOfStock: { id: string; name: string; quantity: number }[];
   };
 }
+
+export interface SalesAnalyticsItem {
+  name: string;
+  revenue: number;
+  quantity: number;
+  profit: number;
+}
+
+export interface SalesAnalytics {
+  categoryWise: SalesAnalyticsItem[];
+  supplierWise: SalesAnalyticsItem[];
+  topItems: SalesAnalyticsItem[];
+  priceRangeWise: SalesAnalyticsItem[];
+  monthlySalesTrend: { month: string; revenue: number; count: number }[];
+}
