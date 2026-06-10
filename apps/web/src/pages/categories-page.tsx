@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { FormField } from "@/components/ui/form-field";
 import { PageHeader } from "@/components/ui/page-header";
-import { DataTable } from "@/components/ui/data-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLang } from "@/hooks/use-lang";
 
@@ -22,6 +21,7 @@ export default function CategoriesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(empty());
   const [err, setErr] = useState("");
+  const [search, setSearch] = useState("");
   const { show } = useToastStore();
 
   const load = () => api.get("/categories").then((r) => setCategories(r.data));
@@ -57,29 +57,54 @@ export default function CategoriesPage() {
   const remove = async (id: string) => {
     if (!confirm(t.delete + "?")) return;
     try { await api.delete(`/categories/${id}`); show(t.delete + " ✓"); load(); }
-    catch { show("Cannot delete — category has products", "error"); }
+    catch { show("Cannot delete — category has items. Remove items first.", "error"); }
   };
 
-  const columns = [
-    { key: "name", label: "Category Name", sortable: true },
-    { key: "description", label: t.description },
-    { key: "status", label: t.status, render: (row: Category) => (
-      <Badge className={row.status === "ACTIVE" ? "bg-brand-100 text-brand-700" : "bg-slate-100 text-slate-500"}>
-        {row.status === "ACTIVE" ? t.active : t.inactive}
-      </Badge>
-    )},
-    { key: "actions", label: "", render: (row: Category) => (
-      <div className="flex gap-2">
-        <Button size="sm" variant="secondary" onClick={() => openEdit(row)}><Pencil className="h-3 w-3" /></Button>
-        <Button size="sm" variant="accent" onClick={() => remove(row.id)}><Trash2 className="h-3 w-3" /></Button>
-      </div>
-    )}
-  ];
+  const filtered = categories.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Categories" subtitle="రకాలు — Sarees, Blouses, Kurthis etc." actions={<Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />Add Category</Button>} />
-      <Card><CardContent><DataTable columns={columns} data={categories} searchable searchPlaceholder="Search categories..." searchKeys={["name"]} /></CardContent></Card>
+      <PageHeader
+        title="Categories"
+        subtitle="రకాలు — Sarees, Blouses, Kurthis etc."
+        actions={<Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />Add Category</Button>}
+      />
+
+      <Card>
+        <CardContent className="space-y-3">
+          <input
+            type="text"
+            placeholder="Search categories..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none max-w-xs"
+          />
+
+          {filtered.length === 0 ? (
+            <p className="text-center text-sm text-slate-400 py-6">{t.noRecords}</p>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((c) => (
+                <div key={c.id} className="flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-brand-900">{c.name}</p>
+                    {c.description && <p className="text-xs text-slate-500 mt-0.5">{c.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    <Badge className={c.status === "ACTIVE" ? "bg-brand-100 text-brand-700" : "bg-slate-100 text-slate-500"}>
+                      {c.status === "ACTIVE" ? t.active : t.inactive}
+                    </Badge>
+                    <Button size="sm" variant="secondary" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button>
+                    <Button size="sm" variant="accent" onClick={() => remove(c.id)}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Category" : "Add Category"}>
         <div className="space-y-4">
