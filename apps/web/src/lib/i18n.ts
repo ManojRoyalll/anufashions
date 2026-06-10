@@ -137,6 +137,16 @@ export const translations = {
     inventoryExcel: "Inventory Excel",
     summaryPdf: "Summary PDF",
     businessReports: "Business Reports",
+    addNew: "Add New",
+    viewAll: "View All",
+    invoices: "Bills & Invoices",
+    totalBill: "Total Bill (₹)",
+    billPhoto: "Bill Photo",
+    overview: "Overview",
+    downloadReports: "Download Reports",
+    itemsSupplied: "Items Supplied",
+    date: "Date",
+    noInvoices: "No invoices yet",
   },
 
   te: {
@@ -275,6 +285,16 @@ export const translations = {
     inventoryExcel: "సరుకు Excel",
     summaryPdf: "సారాంశం PDF",
     businessReports: "వ్యాపార నివేదికలు",
+    addNew: "కొత్తది చేర్చు",
+    viewAll: "అన్నీ చూడు",
+    invoices: "బిల్లులు & ఇన్వాయిసులు",
+    totalBill: "మొత్తం బిల్లు (₹)",
+    billPhoto: "బిల్లు ఫోటో",
+    overview: "సారాంశం",
+    downloadReports: "నివేదికలు డౌన్లోడ్",
+    itemsSupplied: "సరఫరా వస్తువులు",
+    date: "తేదీ",
+    noInvoices: "ఇంకా బిల్లులు లేవు",
   }
 } as const;
 
