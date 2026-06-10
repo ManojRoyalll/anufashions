@@ -74,13 +74,26 @@ productsRouter.get("/", async (req, res, next) => {
 productsRouter.post("/", async (req, res, next) => {
   try {
     const body = productSchema.parse(req.body);
+
+    // Auto-assign price range based on selling price if not explicitly set
+    let priceRangeId = body.priceRangeId || null;
+    if (!priceRangeId && body.sellingPrice > 0) {
+      const matchingRange = await prisma.priceRange.findFirst({
+        where: {
+          minPrice: { lte: body.sellingPrice },
+          maxPrice: { gte: body.sellingPrice }
+        }
+      });
+      if (matchingRange) priceRangeId = matchingRange.id;
+    }
+
     const product = await prisma.product.create({
       data: {
         ...body,
         barcode: body.barcode || null,
         mrp: body.mrp ?? null,
         supplierId: body.supplierId || null,
-        priceRangeId: body.priceRangeId || null,
+        priceRangeId,
         discountLimit: body.discountLimit ?? null,
         datePurchased: body.datePurchased ? new Date(body.datePurchased) : null,
         stockStatus: body.quantity <= 0 ? "OUT_OF_STOCK" : body.quantity <= 5 ? "LOW_STOCK" : "IN_STOCK"
@@ -110,12 +123,24 @@ productsRouter.put("/:id", async (req, res, next) => {
             : "IN_STOCK"
         : undefined;
 
+    // Auto-assign price range when selling price changes and no explicit range given
+    let priceRangeId: string | null | undefined = body.priceRangeId !== undefined ? body.priceRangeId || null : undefined;
+    if (body.sellingPrice !== undefined && body.priceRangeId === undefined) {
+      const matchingRange = await prisma.priceRange.findFirst({
+        where: {
+          minPrice: { lte: body.sellingPrice },
+          maxPrice: { gte: body.sellingPrice }
+        }
+      });
+      priceRangeId = matchingRange ? matchingRange.id : null;
+    }
+
     const product = await prisma.product.update({
       where: { id: req.params.id },
       data: {
         ...body,
         datePurchased: body.datePurchased ? new Date(body.datePurchased) : undefined,
-        priceRangeId: body.priceRangeId !== undefined ? body.priceRangeId || null : undefined,
+        priceRangeId,
         discountLimit: body.discountLimit !== undefined ? body.discountLimit : undefined,
         stockStatus
       },
@@ -136,6 +161,29 @@ productsRouter.delete("/:id", async (req, res, next) => {
   try {
     await prisma.product.delete({ where: { id: req.params.id } });
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Re-assign all products to their correct price range based on current selling price
+productsRouter.post("/reassign-price-ranges", async (_req, res, next) => {
+  try {
+    const [products, ranges] = await Promise.all([
+      prisma.product.findMany({ select: { id: true, sellingPrice: true } }),
+      prisma.priceRange.findMany()
+    ]);
+    let updated = 0;
+    for (const product of products) {
+      const sell = Number(product.sellingPrice);
+      const match = ranges.find((r) => Number(r.minPrice) <= sell && Number(r.maxPrice) >= sell);
+      await prisma.product.update({
+        where: { id: product.id },
+        data: { priceRangeId: match ? match.id : null }
+      });
+      updated++;
+    }
+    res.json({ updated });
   } catch (error) {
     next(error);
   }
