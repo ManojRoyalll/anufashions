@@ -10,10 +10,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { inr } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 
-type Supplier = { id: string; name: string; phone?: string; email?: string; address?: string; outstandingPayments: number };
+type Supplier = { id: string; name: string; phone?: string; email?: string; address?: string; productsSupplied?: string };
 
 const empty = () => ({ supplierName: "", phone: "", email: "", address: "", productsSupplied: "" });
 
@@ -37,7 +36,7 @@ export default function SuppliersPage() {
   const openAdd = () => { setEditing(null); setForm(empty()); setErr(""); setModalOpen(true); };
   const openEdit = (s: Supplier) => {
     setEditing(s);
-    setForm({ supplierName: s.name, phone: s.phone ?? "", email: s.email ?? "", address: s.address ?? "", productsSupplied: "" });
+    setForm({ supplierName: s.name, phone: s.phone ?? "", email: s.email ?? "", address: s.address ?? "", productsSupplied: s.productsSupplied ?? "" });
     setErr("");
     setModalOpen(true);
   };
@@ -67,7 +66,7 @@ export default function SuppliersPage() {
     { key: "phone", label: t.phone },
     { key: "email", label: t.email },
     { key: "address", label: t.address },
-    { key: "outstandingPayments", label: t.outstanding, render: (s: Supplier) => inr(s.outstandingPayments) },
+    { key: "productsSupplied", label: t.itemsSupplied },
     { key: "actions", label: "", render: (s: Supplier) => (
       <div className="flex gap-2">
         <Button size="sm" variant="secondary" onClick={() => openEdit(s)}><Pencil className="h-3 w-3" /></Button>
