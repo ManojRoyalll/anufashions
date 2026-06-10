@@ -1,7 +1,4 @@
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/store/toast";
@@ -16,43 +13,42 @@ import { Textarea } from "@/components/ui/textarea";
 import { inr } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 
-const schema = z.object({
-  supplierName: z.string().min(2, "Name required"),
-  phone: z.string().optional(),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
-  address: z.string().optional(),
-  productsSupplied: z.string().optional()
-});
-type FormData = z.infer<typeof schema>;
-
 type Supplier = { id: string; name: string; phone?: string; email?: string; address?: string; outstandingPayments: number };
+
+const empty = () => ({ supplierName: "", phone: "", email: "", address: "", productsSupplied: "" });
 
 export default function SuppliersPage() {
   const { t } = useLang();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState(empty());
+  const [err, setErr] = useState("");
   const { show } = useToastStore();
-
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   const load = () => api.get("/suppliers").then((r) => setSuppliers(r.data));
   useEffect(() => { load(); }, []);
 
-  const openAdd = () => {
-    setEditing(null);
-    reset({ supplierName: "", phone: "", email: "", address: "", productsSupplied: "" });
-    setModalOpen(true);
+  const set = (field: string, val: string) => {
+    setForm((f) => ({ ...f, [field]: val }));
+    if (field === "supplierName") setErr("");
   };
+
+  const openAdd = () => { setEditing(null); setForm(empty()); setErr(""); setModalOpen(true); };
   const openEdit = (s: Supplier) => {
     setEditing(s);
-    reset({ supplierName: s.name, phone: s.phone ?? "", email: s.email ?? "", address: s.address ?? "" });
+    setForm({ supplierName: s.name, phone: s.phone ?? "", email: s.email ?? "", address: s.address ?? "", productsSupplied: "" });
+    setErr("");
     setModalOpen(true);
   };
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async () => {
+    if (!form.supplierName.trim() || form.supplierName.trim().length < 2) {
+      setErr("Name is required (at least 2 characters)");
+      return;
+    }
     try {
-      const payload = { name: data.supplierName, phone: data.phone, email: data.email, address: data.address, productsSupplied: data.productsSupplied };
+      const payload = { name: form.supplierName.trim(), phone: form.phone || undefined, email: form.email || undefined, address: form.address || undefined, productsSupplied: form.productsSupplied || undefined };
       if (editing) { await api.put(`/suppliers/${editing.id}`, payload); show(t.save + " ✓"); }
       else { await api.post("/suppliers", payload); show(t.addSupplier + " ✓"); }
       setModalOpen(false);
@@ -86,29 +82,36 @@ export default function SuppliersPage() {
       <Card><CardContent><DataTable columns={columns} data={suppliers} searchable searchPlaceholder={t.search} searchKeys={["name"]} /></CardContent></Card>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? t.editSupplier : t.addSupplier}>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <FormField label={t.name} required error={errors.supplierName?.message}>
-            <Input {...register("supplierName")} placeholder="Supplier name" autoComplete="off" />
+        <div className="space-y-4">
+          <FormField label={t.name} required error={err}>
+            <input
+              type="text"
+              autoComplete="off"
+              placeholder="Supplier name"
+              value={form.supplierName}
+              onChange={(e) => set("supplierName", e.target.value)}
+              className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
+            />
           </FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t.phone} error={errors.phone?.message}>
-              <Input {...register("phone")} placeholder="Phone number" />
+            <FormField label={t.phone}>
+              <input type="tel" autoComplete="off" placeholder="Phone number" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
             </FormField>
-            <FormField label={t.email} error={errors.email?.message}>
-              <Input {...register("email")} placeholder="email@example.com" />
+            <FormField label={t.email}>
+              <input type="text" autoComplete="off" placeholder="email@example.com" value={form.email} onChange={(e) => set("email", e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
             </FormField>
           </div>
-          <FormField label={t.address} error={errors.address?.message}>
-            <Textarea {...register("address")} placeholder="Address" />
+          <FormField label={t.address}>
+            <Textarea placeholder="Address" value={form.address} onChange={(e) => set("address", e.target.value)} />
           </FormField>
-          <FormField label={t.productsSupplied} error={errors.productsSupplied?.message}>
-            <Input {...register("productsSupplied")} placeholder="e.g. Sarees, Suits" />
+          <FormField label={t.productsSupplied}>
+            <input type="text" autoComplete="off" placeholder="e.g. Sarees, Suits" value={form.productsSupplied} onChange={(e) => set("productsSupplied", e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
           </FormField>
           <div className="flex gap-3 pt-2">
-            <Button type="submit" className="flex-1">{editing ? t.save : t.addSupplier}</Button>
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>{t.cancel}</Button>
+            <Button className="flex-1" onClick={onSubmit}>{editing ? t.save : t.addSupplier}</Button>
+            <Button variant="secondary" onClick={() => setModalOpen(false)}>{t.cancel}</Button>
           </div>
-        </form>
+        </div>
       </Modal>
     </div>
   );

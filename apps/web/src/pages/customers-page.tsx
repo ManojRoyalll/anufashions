@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/store/toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { FormField } from "@/components/ui/form-field";
 import { PageHeader } from "@/components/ui/page-header";
@@ -15,34 +11,44 @@ import { Card, CardContent } from "@/components/ui/card";
 import { inr } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 
-const schema = z.object({
-  name: z.string().min(2, "Name required"),
-  phone: z.string().optional(),
-  address: z.string().optional()
-});
-type FormData = z.infer<typeof schema>;
-
 type Customer = { id: string; name: string; phone?: string; address?: string; totalSpend: number };
+
+const empty = () => ({ customerName: "", phone: "", address: "" });
 
 export default function CustomersPage() {
   const { t } = useLang();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState(empty());
+  const [err, setErr] = useState("");
   const { show } = useToastStore();
-
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   const load = () => api.get("/customers").then((r) => setCustomers(r.data));
   useEffect(() => { load(); }, []);
 
-  const openAdd = () => { setEditing(null); reset({ name: "", phone: "", address: "" }); setModalOpen(true); };
-  const openEdit = (c: Customer) => { setEditing(c); reset({ name: c.name, phone: c.phone ?? "", address: c.address ?? "" }); setModalOpen(true); };
+  const set = (field: string, val: string) => {
+    setForm((f) => ({ ...f, [field]: val }));
+    if (field === "customerName") setErr("");
+  };
 
-  const onSubmit = async (data: FormData) => {
+  const openAdd = () => { setEditing(null); setForm(empty()); setErr(""); setModalOpen(true); };
+  const openEdit = (c: Customer) => {
+    setEditing(c);
+    setForm({ customerName: c.name, phone: c.phone ?? "", address: c.address ?? "" });
+    setErr("");
+    setModalOpen(true);
+  };
+
+  const onSubmit = async () => {
+    if (!form.customerName.trim() || form.customerName.trim().length < 2) {
+      setErr("Name is required (at least 2 characters)");
+      return;
+    }
     try {
-      if (editing) { await api.put(`/customers/${editing.id}`, data); show(t.save + " ✓"); }
-      else { await api.post("/customers", data); show(t.save + " ✓"); }
+      const payload = { name: form.customerName.trim(), phone: form.phone || undefined, address: form.address || undefined };
+      if (editing) { await api.put(`/customers/${editing.id}`, payload); show(t.save + " ✓"); }
+      else { await api.post("/customers", payload); show(t.add + " ✓"); }
       setModalOpen(false);
       load();
     } catch { show("Error", "error"); }
@@ -58,7 +64,7 @@ export default function CustomersPage() {
     { key: "name", label: t.name, sortable: true },
     { key: "phone", label: t.phone },
     { key: "address", label: t.address },
-    { key: "totalSpend", label: t.total, render: (c: Customer) => <span className="font-semibold text-brand-700">{inr(c.totalSpend)}</span> },
+    { key: "totalSpend", label: "Total Spent", render: (c: Customer) => <span className="font-semibold text-brand-700">{inr(c.totalSpend)}</span> },
     { key: "actions", label: "", render: (c: Customer) => (
       <div className="flex gap-2">
         <Button size="sm" variant="secondary" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button>
@@ -69,19 +75,32 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t.customers} subtitle={t.customers} actions={<Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />{t.add} {t.customers}</Button>} />
+      <PageHeader title={t.customers} subtitle="Customer list" actions={<Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />{t.add} Customer</Button>} />
       <Card><CardContent><DataTable columns={columns} data={customers} searchable searchPlaceholder={t.search} searchKeys={["name"]} /></CardContent></Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? t.edit : t.add}>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <FormField label={t.name} required error={errors.name?.message}><Input {...register("name")} placeholder="Customer name" /></FormField>
-          <FormField label={t.phone} error={errors.phone?.message}><Input {...register("phone")} placeholder="Phone number" /></FormField>
-          <FormField label={t.address} error={errors.address?.message}><Input {...register("address")} placeholder="Address" /></FormField>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Customer" : "Add Customer"}>
+        <div className="space-y-4">
+          <FormField label={t.name} required error={err}>
+            <input
+              type="text"
+              autoComplete="off"
+              placeholder="Customer name"
+              value={form.customerName}
+              onChange={(e) => set("customerName", e.target.value)}
+              className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
+            />
+          </FormField>
+          <FormField label={t.phone}>
+            <input type="tel" autoComplete="off" placeholder="Phone number" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+          </FormField>
+          <FormField label={t.address}>
+            <input type="text" autoComplete="off" placeholder="Address" value={form.address} onChange={(e) => set("address", e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+          </FormField>
           <div className="flex gap-3 pt-2">
-            <Button type="submit" className="flex-1">{t.save}</Button>
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>{t.cancel}</Button>
+            <Button className="flex-1" onClick={onSubmit}>{editing ? t.save : t.add}</Button>
+            <Button variant="secondary" onClick={() => setModalOpen(false)}>{t.cancel}</Button>
           </div>
-        </form>
+        </div>
       </Modal>
     </div>
   );

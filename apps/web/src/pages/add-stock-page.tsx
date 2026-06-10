@@ -9,6 +9,7 @@ import { inr } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 
 type Supplier = { id: string; name: string; phone?: string };
+type ExistingCategory = { id: string; name: string };
 
 type ItemRow = {
   id: string;
@@ -39,6 +40,7 @@ export default function AddStockPage() {
 
   // Step 1: Supplier
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [existingCategories, setExistingCategories] = useState<ExistingCategory[]>([]);
   const [supplierQuery, setSupplierQuery] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [newSupplierName, setNewSupplierName] = useState("");
@@ -53,6 +55,7 @@ export default function AddStockPage() {
 
   useEffect(() => {
     api.get("/suppliers").then((r) => setSuppliers(r.data));
+    api.get("/categories").then((r) => setExistingCategories(r.data));
   }, []);
 
   const supplierMatches = supplierQuery.trim()
@@ -287,12 +290,32 @@ export default function AddStockPage() {
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-brand-700 mb-1">Category / రకం {gi + 1}</p>
-                    <Input
+                    <input
+                      type="text"
+                      autoComplete="off"
                       placeholder="e.g. Cotton Sarees, Silk Sarees, Blouses..."
                       value={group.categoryName}
                       onChange={(e) => updateGroupName(group.id, e.target.value)}
-                      autoComplete="off"
+                      className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
                     />
+                    {existingCategories.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {existingCategories.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => updateGroupName(group.id, c.name)}
+                            className={`rounded-full px-3 py-1 text-xs font-medium border transition ${
+                              group.categoryName === c.name
+                                ? "bg-brand-700 text-white border-brand-700"
+                                : "bg-white text-brand-700 border-brand-200 hover:border-brand-500"
+                            }`}
+                          >
+                            {c.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2 mt-5">
                     <button onClick={() => toggleGroup(group.id)} className="p-2 rounded-xl bg-brand-50 text-brand-700 hover:bg-brand-100">

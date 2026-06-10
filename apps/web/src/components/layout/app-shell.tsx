@@ -25,7 +25,7 @@ export default function AppShell() {
     { to: "/purchases", label: t.boughtStock, sub: "కొన్న సరుకు", icon: ShoppingBag },
     { to: "/suppliers", label: t.suppliers, sub: "సరఫరాదారులు", icon: Truck },
     { to: "/customers", label: t.customers, sub: "కస్టమర్లు", icon: Users },
-    { to: "/categories", label: t.types, sub: "రకాలు", icon: Tag },
+    { to: "/categories", label: "Categories", sub: "రకాలు", icon: Tag },
     { to: "/price-ranges", label: t.priceGroups, sub: "ధర గుంపులు", icon: Layers },
     { to: "/reports", label: t.reports, sub: "నివేదికలు", icon: FileText },
   ];
