@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
-  ShoppingCart, LayoutDashboard, Box, Receipt,
-  Truck, Tag, Menu, LogOut
+  ShoppingCart, LayoutDashboard, Box, ShoppingBag,
+  Settings, Menu, LogOut
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useAppStore } from "@/store/app";
@@ -19,11 +19,10 @@ export default function AppShell() {
 
   const nav = [
     { to: "/", label: t.sell, sub: "అమ్మకం", icon: ShoppingCart },
+    { to: "/buy", label: "Buy Stock", sub: "సరుకు కొనుగోలు", icon: ShoppingBag },
     { to: "/stock", label: t.myStock, sub: "నా సరుకు", icon: Box },
-    { to: "/invoices", label: t.invoices, sub: "బిల్లులు", icon: Receipt },
-    { to: "/suppliers", label: t.suppliers, sub: "సరఫరాదారులు", icon: Truck },
-    { to: "/categories", label: "Categories", sub: "రకాలు", icon: Tag },
     { to: "/overview", label: t.overview, sub: "సారాంశం", icon: LayoutDashboard },
+    { to: "/settings", label: "Settings", sub: "సెట్టింగులు", icon: Settings },
   ];
 
   return (

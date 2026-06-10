@@ -109,9 +109,11 @@ export default function SalesPage() {
   };
 
   // Filtered products
-  const filtered = products.filter((p) =>
-    [p.name, p.code, p.barcode, p.category?.name].join(" ").toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = query.trim().length > 0
+    ? products.filter((p) =>
+        [p.name, p.code, p.barcode, p.category?.name].join(" ").toLowerCase().includes(query.toLowerCase())
+      )
+    : [];
 
   // Cart ops
   const addToCart = (product: any) => {
@@ -278,9 +280,14 @@ export default function SalesPage() {
             <h2 className="text-xl font-bold text-brand-900">{t.sell} 🛒</h2>
             <Input placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
             <div className="max-h-[500px] space-y-2 overflow-auto pr-1">
-              {filtered.length === 0 && (
+              {query.trim().length === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                  <p className="text-3xl mb-2">🔍</p>
+                  <p className="text-sm">Type saree name to search / సారీ పేరు టైప్ చేయండి</p>
+                </div>
+              ) : filtered.length === 0 ? (
                 <p className="text-center text-sm text-slate-400 py-8">{t.noRecords}</p>
-              )}
+              ) : null}
               {filtered.map((product) => (
                 <div key={product.id} className="flex items-center justify-between rounded-xl bg-white/80 p-3 border border-brand-50 hover:border-brand-200 transition">
                   <div className="flex-1 min-w-0">
