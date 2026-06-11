@@ -294,398 +294,283 @@ export default function SalesPage() {
       {showScanner && (
         <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
       )}
-    <div className="space-y-5">
-      {/* POS GRID */}
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.95fr]">
+    <div className="space-y-3 max-w-2xl mx-auto">
 
-        {/* LEFT — Product picker */}
+      {/* ── SEARCH + SCAN ── */}
+      <div className="flex gap-2">
+        <Input
+          placeholder={t.search}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="text-base"
+          autoFocus
+        />
+        <button
+          onClick={() => setShowScanner(true)}
+          className="shrink-0 flex items-center gap-1.5 rounded-xl bg-brand-700 text-white px-4 py-2 text-sm font-bold hover:bg-brand-800 transition"
+        >
+          <ScanLine className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* ── PRODUCT LIST — only when searching ── */}
+      {query.trim().length > 0 && (
         <Card>
-          <CardContent className="space-y-3">
-            <h2 className="text-xl font-bold text-brand-900">{t.sell} 🛒</h2>
-            <div className="flex gap-2">
-              <Input placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
-              <button
-                onClick={() => setShowScanner(true)}
-                className="shrink-0 flex items-center gap-1.5 rounded-xl bg-brand-700 text-white px-3 py-2 text-sm font-semibold hover:bg-brand-800 transition"
-                title="Scan QR code"
-              >
-                <ScanLine className="h-4 w-4" />
-                <span className="hidden sm:inline">Scan</span>
-              </button>
-            </div>
-            <div className="max-h-[500px] space-y-2 overflow-auto pr-1">
-              {query.trim().length === 0 ? (
-                <div className="text-center py-10 text-slate-400">
-                  <p className="text-3xl mb-2">🔍</p>
-                  <p className="text-sm">Type saree name to search / సారీ పేరు టైప్ చేయండి</p>
-                </div>
-              ) : filtered.length === 0 ? (
-                <p className="text-center text-sm text-slate-400 py-8">{t.noRecords}</p>
-              ) : null}
-              {filtered.map((product) => (
-                <div key={product.id} className="flex items-center justify-between rounded-xl bg-white/80 p-3 border border-brand-50 hover:border-brand-200 transition">
+          <CardContent className="p-2 space-y-1">
+            {filtered.length === 0 ? (
+              <p className="text-center text-sm text-slate-400 py-4">{t.noRecords}</p>
+            ) : (
+              filtered.map((product) => (
+                <button
+                  key={product.id}
+                  onClick={() => { addToCart(product); setQuery(""); }}
+                  disabled={product.quantity === 0}
+                  className="w-full flex items-center justify-between rounded-xl px-3 py-3 hover:bg-brand-50 active:bg-brand-100 transition disabled:opacity-40 text-left"
+                >
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-brand-900 truncate">{product.name}</p>
+                    <p className="font-semibold text-brand-900">{product.name}</p>
                     <p className="text-xs text-slate-500 mt-0.5">
                       {product.category?.name}
                       {" · "}
                       <span className={product.quantity <= 5 ? "text-terra-500 font-semibold" : ""}>
-                        {t.stock}: {product.quantity}
+                        Stock: {product.quantity}
                       </span>
-                      {product.discountLimit != null && ` · Max ${t.discount}: ${product.discountLimit}%`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 ml-3 shrink-0">
-                    <p className="text-base font-bold text-brand-800">{inr(product.sellingPrice)}</p>
-                    <button
-                      onClick={() => addToCart(product)}
-                      disabled={product.quantity === 0}
-                      className="bg-brand-700 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-brand-800 disabled:opacity-40 transition"
-                    >
-                      + {t.addToBill}
-                    </button>
+                  <div className="ml-3 shrink-0 text-right">
+                    <p className="font-bold text-brand-800">{inr(product.sellingPrice)}</p>
+                    {product.discountLimit != null && <p className="text-xs text-slate-400">Max disc: {product.discountLimit}%</p>}
                   </div>
-                </div>
-              ))}
-            </div>
+                </button>
+              ))
+            )}
           </CardContent>
         </Card>
+      )}
 
-        {/* RIGHT — Bill */}
-        <div className="space-y-3">
-
-          {/* Cart items */}
-          <Card>
-            <CardContent className="space-y-3">
-              <h3 className="font-bold text-brand-900 text-lg">{t.cart} 🧾</h3>
-
-              {cart.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <p className="text-3xl mb-2">🛍️</p>
-                  <p className="text-sm">Add sarees from the left</p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[340px] overflow-auto pr-1">
-                  {cart.map((item) => {
-                    const lineTotal = item.quantity * item.unitPrice;
-                    // Apply the bill-level discount proportionally to show per-item profit
-                    const billDiscount = discountAmount > 0 && subtotal > 0
-                      ? (item.quantity * item.unitPrice / subtotal) * discountAmount
-                      : 0;
-                    const itemProfit = (item.unitPrice - item.purchasePrice) * item.quantity - billDiscount;
-                    const priceChanged = item.unitPrice !== item.originalPrice;
-                    return (
-                      <div key={item.productId} className="bg-brand-50 rounded-xl p-3 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="font-semibold text-sm text-brand-900 leading-tight flex-1">{item.name}</p>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${itemProfit >= 0 ? "bg-brand-100 text-brand-700" : "bg-red-100 text-red-600"}`}>
-                              {t.profit} {inr(itemProfit)}
-                            </span>
-                            <button onClick={() => removeFromCart(item.productId)} className="text-terra-400 hover:text-terra-600 p-0.5">
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {/* Qty */}
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => updateQty(item.productId, item.quantity - 1)} className="w-8 h-8 rounded-lg border-2 border-brand-300 bg-white font-bold text-brand-700 text-lg hover:bg-brand-100 flex items-center justify-center">−</button>
-                            <span className="w-7 text-center font-bold text-base text-brand-900">{item.quantity}</span>
-                            <button onClick={() => updateQty(item.productId, item.quantity + 1)} className="w-8 h-8 rounded-lg border-2 border-brand-300 bg-white font-bold text-brand-700 text-lg hover:bg-brand-100 flex items-center justify-center">+</button>
-                          </div>
-                          {/* Price per item */}
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-slate-500">{t.sellPrice.split(" ")[0]} ₹</span>
-                            <input
-                              type="number"
-                              value={item.unitPrice}
-                              onChange={(e) => updatePrice(item.productId, Number(e.target.value))}
-                              className={`w-24 rounded-lg border-2 px-2 py-1 text-sm font-bold text-center ${priceChanged ? "border-terra-400 bg-terra-50 text-terra-700" : "border-brand-200 bg-white text-brand-900"}`}
-                            />
-                            {priceChanged && (
-                              <span className="text-xs text-slate-400 line-through">{inr(item.originalPrice)}</span>
-                            )}
-                          </div>
-                          <span className="ml-auto font-bold text-base text-brand-800">{inr(lineTotal)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Discount */}
-          {cart.length > 0 && (
-            <Card>
-              <CardContent className="space-y-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-brand-700">{t.discount} / తగ్గింపు</p>
-                <div className="flex flex-wrap gap-2">
-                  {DISCOUNT_CHIPS.map((chip, i) => (
-                    <button
-                      key={i}
-                      onClick={() => { setDiscountChip(i); setCustomDiscount(""); }}
-                      className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition ${
-                        discountChip === i && customDiscount === ""
-                          ? "bg-brand-700 text-white border-brand-700"
-                          : "bg-white text-brand-700 border-brand-200 hover:border-brand-500"
-                      }`}
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2 bg-brand-50 rounded-xl px-3 py-2">
-                  <span className="text-xs font-semibold text-brand-700 whitespace-nowrap">Custom ₹</span>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={customDiscount}
-                    onChange={(e) => { setCustomDiscount(e.target.value); setDiscountChip(null); }}
-                    className="flex-1 bg-transparent text-base font-bold text-brand-900 w-20 focus:outline-none"
-                  />
-                  {discountAmount > 0 && (
-                    <span className="text-xs font-semibold text-terra-500">{discountPct.toFixed(1)}% off</span>
-                  )}
-                </div>
-                {discountWarnings.length > 0 && (
-                  <div className="flex items-start gap-2 rounded-xl bg-terra-50 px-3 py-2 text-xs text-terra-600">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    <span>{t.discountWarning}: {discountWarnings.map(i => i.name).join(", ")}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Payment */}
-          {cart.length > 0 && (
-            <Card>
-              <CardContent>
-                <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">{t.payment} / చెల్లింపు</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {[["CASH", "💵", t.cash, "నగదు"], ["UPI", "📱", t.upi, "యూపీఐ"], ["CARD", "💳", t.card, "కార్డు"]].map(([val, icon, label, sub]) => (
-                    <button
-                      key={val}
-                      onClick={() => setPaymentMethod(val)}
-                      className={`rounded-xl py-3 text-center text-sm font-bold border-2 transition ${
-                        paymentMethod === val
-                          ? "bg-brand-700 text-white border-brand-700"
-                          : "bg-white text-brand-700 border-brand-200 hover:border-brand-500"
-                      }`}
-                    >
-                      <span className="block text-xl">{icon}</span>
-                      <span className="block text-xs mt-0.5">{label}</span>
-                      <span className={`block text-xs ${paymentMethod === val ? "opacity-70" : "text-slate-400"}`}>{sub}</span>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Customer */}
-          {cart.length > 0 && (
-            <Card>
-              <CardContent className="space-y-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-brand-700">{t.customers} / కస్టమర్ (optional)</p>
-
-                {selectedCustomer ? (
-                  <div className="flex items-center justify-between bg-brand-50 rounded-xl px-3 py-2.5">
-                    <div>
-                      <p className="font-semibold text-brand-900 text-sm">{selectedCustomer.name}</p>
-                      <p className="text-xs text-slate-500">{selectedCustomer.phone} · Total spend: {inr(selectedCustomer.totalSpend)}</p>
+      {/* ── CART ── */}
+      {cart.length > 0 && (
+        <Card>
+          <CardContent className="space-y-2 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-700">🧾 {t.cart}</p>
+            {cart.map((item) => {
+              const lineTotal = item.quantity * item.unitPrice;
+              const billDiscount = discountAmount > 0 && subtotal > 0
+                ? (item.quantity * item.unitPrice / subtotal) * discountAmount : 0;
+              const itemProfit = (item.unitPrice - item.purchasePrice) * item.quantity - billDiscount;
+              const priceChanged = item.unitPrice !== item.originalPrice;
+              return (
+                <div key={item.productId} className="bg-brand-50 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-sm text-brand-900 flex-1 truncate">{item.name}</p>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${itemProfit >= 0 ? "bg-brand-100 text-brand-700" : "bg-red-100 text-red-600"}`}>
+                        {t.profit} {inr(itemProfit)}
+                      </span>
+                      <button onClick={() => removeFromCart(item.productId)} className="text-terra-400 p-0.5">
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
-                    <button onClick={clearCustomer} className="text-terra-400 hover:text-terra-600">
-                      <X className="h-4 w-4" />
-                    </button>
                   </div>
-                ) : (
-                  <div className="relative">
-                    <Input
-                      placeholder="Search name or mobile... / పేరు లేదా నంబర్"
-                      value={customerQuery}
-                      onChange={(e) => { setCustomerQuery(e.target.value); setShowCustomerDropdown(true); }}
-                      onFocus={() => setShowCustomerDropdown(true)}
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => updateQty(item.productId, item.quantity - 1)} className="w-9 h-9 rounded-lg border-2 border-brand-300 bg-white font-bold text-brand-700 text-xl hover:bg-brand-100 flex items-center justify-center">−</button>
+                    <span className="w-8 text-center font-bold text-lg text-brand-900">{item.quantity}</span>
+                    <button onClick={() => updateQty(item.productId, item.quantity + 1)} className="w-9 h-9 rounded-lg border-2 border-brand-300 bg-white font-bold text-brand-700 text-xl hover:bg-brand-100 flex items-center justify-center">+</button>
+                    <span className="text-xs text-slate-500 ml-1">₹</span>
+                    <input
+                      type="number"
+                      value={item.unitPrice}
+                      onChange={(e) => updatePrice(item.productId, Number(e.target.value))}
+                      className={`w-24 rounded-lg border-2 px-2 py-1.5 text-sm font-bold text-center ${priceChanged ? "border-terra-400 bg-terra-50 text-terra-700" : "border-brand-200 bg-white"}`}
                     />
-                    {showCustomerDropdown && customerMatches.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-brand-200 rounded-xl shadow-premium overflow-hidden">
-                        {customerMatches.map((c) => (
-                          <button
-                            key={c.id}
-                            onClick={() => selectCustomer(c)}
-                            className="w-full text-left px-4 py-2.5 hover:bg-brand-50 border-b border-brand-50 last:border-0"
-                          >
-                            <p className="font-semibold text-sm text-brand-900">{c.name}</p>
-                            <p className="text-xs text-slate-500">{c.phone} · {inr(c.totalSpend)} spent</p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {!selectedCustomer && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <p className="text-xs text-brand-700 font-semibold mb-1">Name / పేరు</p>
-                      <Input
-                        placeholder="Lakshmi Devi"
-                        value={newCustomerName}
-                        onChange={(e) => setNewCustomerName(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <p className="text-xs text-brand-700 font-semibold mb-1">Mobile / ఫోన్</p>
-                      <Input
-                        placeholder="9876543210"
-                        type="tel"
-                        value={newCustomerPhone}
-                        onChange={(e) => setNewCustomerPhone(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Total + Generate */}
-          {cart.length > 0 && (
-            <Card>
-              <CardContent className="space-y-3">
-                <div className="bg-brand-50 rounded-xl p-4 space-y-1.5">
-                  {cart.map((i) => (
-                    <div key={i.productId} className="flex justify-between text-sm text-slate-600">
-                      <span className="truncate flex-1 mr-2">{i.name} ×{i.quantity}</span>
-                      <span className="font-medium shrink-0">{inr(i.quantity * i.unitPrice)}</span>
-                    </div>
-                  ))}
-                  {discountAmount > 0 && (
-                    <>
-                      <div className="flex justify-between text-sm border-t border-brand-100 pt-1.5">
-                        <span className="text-slate-500">Subtotal</span>
-                        <span>{inr(subtotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-terra-600 font-semibold">
-                        <span>{t.discount}</span>
-                        <span>− {inr(discountAmount)}</span>
-                      </div>
-                    </>
-                  )}
-                  <div className="flex justify-between text-xl font-black text-brand-900 border-t-2 border-brand-200 pt-2 mt-1">
-                    <span>{t.total}</span>
-                    <span>{inr(total)}</span>
+                    <span className="ml-auto font-bold text-base text-brand-800">{inr(lineTotal)}</span>
                   </div>
                 </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
-                <Button
-                  className="w-full text-base py-4 font-bold"
-                  onClick={checkout}
-                  disabled={cart.length === 0}
-                >
-                  ✅ {t.generateBill}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Generated Bill */}
-          {generatedBill && (
-            <Card>
-              <CardContent className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-brand-700">📋 Bill Preview</p>
-                <div ref={billRef} className="bg-white border-2 border-dashed border-brand-200 rounded-xl p-4 font-mono text-xs space-y-1">
-                  <p className="text-center font-bold text-base text-brand-900">🌸 Anu Fashions 🌸</p>
-                  <p className="text-center text-slate-500 text-xs">Ladies Sarees & Dress Materials</p>
-                  <hr className="border-dashed border-brand-200 my-1" />
-                  <p className="flex justify-between"><span>Date:</span><span>{generatedBill.date}</span></p>
-                  {generatedBill.customer && (
-                    <>
-                      <p className="flex justify-between"><span>Customer:</span><span className="font-semibold">{generatedBill.customer.name}</span></p>
-                      {generatedBill.customer.phone && (
-                        <p className="flex justify-between"><span>Mobile:</span><span>{generatedBill.customer.phone}</span></p>
-                      )}
-                    </>
-                  )}
-                  <hr className="border-dashed border-brand-200 my-1" />
-                  {generatedBill.items.map((i, idx) => (
-                    <div key={idx}>
-                      <p className="font-semibold text-brand-900">{i.name}</p>
-                      <p className="flex justify-between text-slate-600">
-                        <span>{i.quantity} × {inr(i.unitPrice)}</span>
-                        <span className="font-bold">{inr(i.quantity * i.unitPrice)}</span>
-                      </p>
-                    </div>
-                  ))}
-                  <hr className="border-dashed border-brand-200 my-1" />
-                  {generatedBill.discount > 0 && (
-                    <>
-                      <p className="flex justify-between text-slate-500"><span>Subtotal</span><span>{inr(generatedBill.subtotal)}</span></p>
-                      <p className="flex justify-between text-terra-600 font-semibold"><span>Discount</span><span>− {inr(generatedBill.discount)}</span></p>
-                    </>
-                  )}
-                  <p className="flex justify-between font-black text-base text-brand-900 border-t border-brand-200 pt-1">
-                    <span>TOTAL</span><span>{inr(generatedBill.total)}</span>
-                  </p>
-                  <p className="flex justify-between text-slate-500"><span>Payment</span><span>{generatedBill.payment}</span></p>
-                  <hr className="border-dashed border-brand-200 my-1" />
-                  <p className="text-center text-slate-500">🙏 Thank you! Please visit again 💐</p>
-                  <p className="text-center text-brand-700">ధన్యవాదాలు · మళ్ళీ రండి 🌺</p>
-                </div>
-
-                <button
-                  onClick={shareOnWhatsApp}
-                  className="w-full py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2"
-                  style={{ background: "#25D366" }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                    <path d="M12 0C5.374 0 0 5.373 0 12c0 2.117.549 4.107 1.508 5.84L0 24l6.335-1.48A11.945 11.945 0 0012 24c6.626 0 12-5.373 12-12 0-6.628-5.374-12-12-12zm0 21.818a9.817 9.817 0 01-5.006-1.366l-.36-.214-3.76.878.899-3.654-.235-.374A9.808 9.808 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
-                  </svg>
-                  Share Bill on WhatsApp
+      {/* ── DISCOUNT ── */}
+      {cart.length > 0 && (
+        <Card>
+          <CardContent className="p-3 space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-700">{t.discount}</p>
+            <div className="flex flex-wrap gap-2">
+              {DISCOUNT_CHIPS.map((chip, i) => (
+                <button key={i} onClick={() => { setDiscountChip(i); setCustomDiscount(""); }}
+                  className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition ${discountChip === i && customDiscount === "" ? "bg-brand-700 text-white border-brand-700" : "bg-white text-brand-700 border-brand-200"}`}>
+                  {chip.label}
                 </button>
+              ))}
+              <div className="flex items-center gap-1 bg-brand-50 rounded-full px-3 py-1.5 border border-brand-200 flex-1 min-w-24">
+                <span className="text-xs text-brand-700">₹</span>
+                <input type="number" placeholder="Custom" value={customDiscount}
+                  onChange={(e) => { setCustomDiscount(e.target.value); setDiscountChip(null); }}
+                  className="w-full bg-transparent text-sm font-bold text-brand-900 focus:outline-none" />
+              </div>
+            </div>
+            {discountWarnings.length > 0 && (
+              <div className="flex items-start gap-2 rounded-xl bg-terra-50 px-3 py-2 text-xs text-terra-600">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>{t.discountWarning}: {discountWarnings.map(i => i.name).join(", ")}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-                <button
-                  onClick={() => setGeneratedBill(null)}
-                  className="w-full py-2 rounded-xl text-sm text-brand-600 border border-brand-200 hover:bg-brand-50"
-                >
-                  New Sale / కొత్త అమ్మకం
-                </button>
-              </CardContent>
-            </Card>
-          )}
+      {/* ── PAYMENT ── */}
+      {cart.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {[["CASH", "💵", t.cash], ["UPI", "📱", t.upi], ["CARD", "💳", t.card]].map(([val, icon, label]) => (
+            <button key={val} onClick={() => setPaymentMethod(val)}
+              className={`rounded-xl py-3 text-center font-bold border-2 transition ${paymentMethod === val ? "bg-brand-700 text-white border-brand-700" : "bg-white text-brand-700 border-brand-200"}`}>
+              <span className="block text-2xl">{icon}</span>
+              <span className="block text-xs mt-0.5">{label}</span>
+            </button>
+          ))}
         </div>
-      </div>
+      )}
 
-      {/* SALES HISTORY */}
+      {/* ── CUSTOMER (collapsed by default) ── */}
+      {cart.length > 0 && (
+        <Card>
+          <CardContent className="p-3 space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-700">Customer (optional)</p>
+            {selectedCustomer ? (
+              <div className="flex items-center justify-between bg-brand-50 rounded-xl px-3 py-2">
+                <div>
+                  <p className="font-semibold text-brand-900 text-sm">{selectedCustomer.name}</p>
+                  <p className="text-xs text-slate-500">{selectedCustomer.phone}</p>
+                </div>
+                <button onClick={clearCustomer} className="text-terra-400"><X className="h-4 w-4" /></button>
+              </div>
+            ) : (
+              <div className="space-y-2 relative">
+                <Input placeholder="Search name or mobile..." value={customerQuery}
+                  onChange={(e) => { setCustomerQuery(e.target.value); setShowCustomerDropdown(true); }}
+                  onFocus={() => setShowCustomerDropdown(true)} />
+                {showCustomerDropdown && customerMatches.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-brand-200 rounded-xl shadow-premium overflow-hidden">
+                    {customerMatches.map((c) => (
+                      <button key={c.id} onClick={() => selectCustomer(c)} className="w-full text-left px-4 py-2.5 hover:bg-brand-50 border-b border-brand-50 last:border-0">
+                        <p className="font-semibold text-sm">{c.name}</p>
+                        <p className="text-xs text-slate-500">{c.phone}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} />
+                  <Input placeholder="Mobile" type="tel" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── TOTAL + GENERATE BILL ── */}
+      {cart.length > 0 && (
+        <Card>
+          <CardContent className="p-3 space-y-3">
+            <div className="bg-brand-50 rounded-xl p-3 space-y-1">
+              {cart.map((i) => (
+                <div key={i.productId} className="flex justify-between text-sm text-slate-600">
+                  <span className="truncate flex-1 mr-2">{i.name} ×{i.quantity}</span>
+                  <span className="font-medium">{inr(i.quantity * i.unitPrice)}</span>
+                </div>
+              ))}
+              {discountAmount > 0 && (
+                <>
+                  <div className="flex justify-between text-sm border-t border-brand-100 pt-1 mt-1">
+                    <span className="text-slate-500">Subtotal</span><span>{inr(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-terra-600 font-semibold">
+                    <span>{t.discount}</span><span>− {inr(discountAmount)} ({discountPct.toFixed(0)}%)</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between text-2xl font-black text-brand-900 border-t-2 border-brand-200 pt-2 mt-1">
+                <span>{t.total}</span><span>{inr(total)}</span>
+              </div>
+            </div>
+            <Button className="w-full text-lg py-5 font-bold" onClick={checkout} disabled={cart.length === 0}>
+              ✅ {t.generateBill}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── GENERATED BILL ── */}
+      {generatedBill && (
+        <Card>
+          <CardContent className="space-y-3 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-700">📋 Bill Preview</p>
+            <div ref={billRef} className="bg-white border-2 border-dashed border-brand-200 rounded-xl p-4 font-mono text-xs space-y-1">
+              <p className="text-center font-bold text-base">Anu Fashions</p>
+              <p className="text-center text-slate-500 text-xs">Ladies Sarees & Dress Materials</p>
+              <hr className="border-dashed border-brand-200 my-1" />
+              <p className="flex justify-between"><span>Date:</span><span>{generatedBill.date}</span></p>
+              {generatedBill.customer && (
+                <>
+                  <p className="flex justify-between"><span>Customer:</span><span className="font-semibold">{generatedBill.customer.name}</span></p>
+                  {generatedBill.customer.phone && <p className="flex justify-between"><span>Mobile:</span><span>{generatedBill.customer.phone}</span></p>}
+                </>
+              )}
+              <hr className="border-dashed border-brand-200 my-1" />
+              {generatedBill.items.map((i, idx) => (
+                <div key={idx}>
+                  <p className="font-semibold">{i.name}</p>
+                  <p className="flex justify-between text-slate-600"><span>{i.quantity} × {inr(i.unitPrice)}</span><span className="font-bold">{inr(i.quantity * i.unitPrice)}</span></p>
+                </div>
+              ))}
+              <hr className="border-dashed border-brand-200 my-1" />
+              {generatedBill.discount > 0 && (
+                <>
+                  <p className="flex justify-between text-slate-500"><span>Subtotal</span><span>{inr(generatedBill.subtotal)}</span></p>
+                  <p className="flex justify-between text-terra-600 font-semibold"><span>Discount</span><span>− {inr(generatedBill.discount)}</span></p>
+                </>
+              )}
+              <p className="flex justify-between font-black text-base border-t border-brand-200 pt-1"><span>TOTAL</span><span>{inr(generatedBill.total)}</span></p>
+              <p className="flex justify-between text-slate-500"><span>Payment</span><span>{generatedBill.payment}</span></p>
+              <hr className="border-dashed border-brand-200 my-1" />
+              <p className="text-center text-slate-500">Thank you! Please visit again.</p>
+              <p className="text-center text-brand-700">ధన్యవాదాలు · మళ్ళీ రండి</p>
+            </div>
+            <button onClick={shareOnWhatsApp} className="w-full py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2" style={{ background: "#25D366" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.374 0 0 5.373 0 12c0 2.117.549 4.107 1.508 5.84L0 24l6.335-1.48A11.945 11.945 0 0012 24c6.626 0 12-5.373 12-12 0-6.628-5.374-12-12-12zm0 21.818a9.817 9.817 0 01-5.006-1.366l-.36-.214-3.76.878.899-3.654-.235-.374A9.808 9.808 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/></svg>
+              Share Bill on WhatsApp
+            </button>
+            <button onClick={() => setGeneratedBill(null)} className="w-full py-2.5 rounded-xl text-sm text-brand-600 border border-brand-200 hover:bg-brand-50 font-semibold">
+              New Sale / కొత్త అమ్మకం
+            </button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── SALES HISTORY ── */}
       <Card>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <h3 className="text-lg font-semibold">{t.todaysSales}</h3>
+        <CardContent className="p-3 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="font-semibold text-brand-900">{t.todaysSales}</h3>
             <div className="flex gap-1">
               {(["today", "week", "month"] as HistoryPeriod[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => { setPeriod(p); loadHistory(p); }}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    period === p ? "bg-brand-700 text-white" : "bg-brand-50 text-brand-700 hover:bg-brand-100"
-                  }`}
-                >
+                <button key={p} onClick={() => { setPeriod(p); loadHistory(p); }}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${period === p ? "bg-brand-700 text-white" : "bg-brand-50 text-brand-700"}`}>
                   {periodLabel[p]}
                 </button>
               ))}
             </div>
           </div>
-
           {salesHistory.length === 0 ? (
             <p className="text-center text-sm text-slate-400 py-4">{t.noSales}</p>
           ) : (
             <div className="space-y-2">
               {salesHistory.map((sale) => (
-                <div key={sale.id} className="flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
+                <div key={sale.id} className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5">
                   <div>
                     <p className="text-sm font-semibold text-brand-900">
                       {sale.items.reduce((s, i) => s + i.quantity, 0)} {t.items}
@@ -696,9 +581,9 @@ export default function SalesPage() {
                       {" · "}{sale.paymentMethod === "CASH" ? t.cash : sale.paymentMethod === "UPI" ? t.upi : t.card}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <p className="font-bold text-brand-800">{inr(Number(sale.totalAmount))}</p>
-                    <button onClick={() => deleteSale(sale.id)} className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg">
+                    <button onClick={() => deleteSale(sale.id)} className="p-1.5 text-terra-400 hover:text-terra-600 rounded-lg">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -706,10 +591,9 @@ export default function SalesPage() {
               ))}
             </div>
           )}
-
-          <div className="flex items-center justify-between rounded-xl bg-white border border-brand-200 px-4 py-3 text-sm font-semibold">
-            <span>{t.totalSales}: {salesHistory.length} {t.transactions}</span>
-            <span className="text-brand-800 text-base">{inr(salesHistory.reduce((s, r) => s + Number(r.totalAmount), 0))}</span>
+          <div className="flex justify-between rounded-xl bg-white border border-brand-200 px-3 py-2.5 text-sm font-semibold">
+            <span>{salesHistory.length} {t.transactions}</span>
+            <span className="text-brand-800">{inr(salesHistory.reduce((s, r) => s + Number(r.totalAmount), 0))}</span>
           </div>
         </CardContent>
       </Card>
