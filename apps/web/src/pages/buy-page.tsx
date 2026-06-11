@@ -12,12 +12,12 @@ import { ImageUpload } from "@/components/ui/image-upload";
 type Supplier = { id: string; name: string; phone?: string };
 type ExistingCategory = { id: string; name: string };
 type ItemRow = {
-  id: string; title: string; categoryName: string;
+  id: string; title: string; categoryName: string; itemCode: string;
   buyPrice: string; sellPrice: string; maxDiscount: string; quantity: string;
 };
 
 function emptyItem(): ItemRow {
-  return { id: Math.random().toString(36).slice(2), title: "", categoryName: "", buyPrice: "", sellPrice: "", maxDiscount: "", quantity: "" };
+  return { id: Math.random().toString(36).slice(2), title: "", categoryName: "", itemCode: "", buyPrice: "", sellPrice: "", maxDiscount: "", quantity: "" };
 }
 
 export default function BuyPage() {
@@ -130,7 +130,7 @@ export default function BuyPage() {
         // Create product
         try {
           const productRes = await api.post("/products", {
-            code: `ANU-${Date.now()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+            code: item.itemCode.trim() || `ANU-${Date.now()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
             name: item.title.trim(),
             categoryId,
             supplierId,
@@ -332,6 +332,10 @@ export default function BuyPage() {
                       <div className="flex-1">
                         <p className="text-xs font-semibold text-brand-600 mb-1">Item Name / సరుకు పేరు</p>
                         <Input placeholder="Saree / item name" value={item.title} onChange={(e) => updateItem(item.id, "title", e.target.value)} autoComplete="off" />
+                      </div>
+                      <div style={{ width: "120px" }}>
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Item Code</p>
+                        <Input placeholder="e.g. SILK-001" value={item.itemCode} onChange={(e) => updateItem(item.id, "itemCode", e.target.value)} autoComplete="off" />
                       </div>
                       <button onClick={() => items.length > 1 ? removeItem(item.id) : undefined} className={`mt-5 p-2 rounded-xl ${items.length > 1 ? "text-red-400 hover:bg-red-100" : "text-slate-200"}`}>
                         <Trash2 className="h-4 w-4" />
