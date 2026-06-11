@@ -22,7 +22,7 @@ categoriesRouter.get("/", async (_req, res, next) => {
 categoriesRouter.post("/", async (req, res, next) => {
   try {
     const body = categorySchema.parse(req.body);
-    const category = await prisma.category.create({ data: body });
+    const category = await prisma.category.create({ data: { name: body.name!, description: body.description, status: body.status } });
     res.status(201).json(category);
   } catch (error) {
     next(error);
