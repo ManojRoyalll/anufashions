@@ -68,10 +68,9 @@ async function renderLabelCanvas(
 
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, W, H);
-  ctx.textBaseline = "top";  // y coordinate = top of text, matches wdfx y
+  ctx.textBaseline = "top";
 
-  // ── QR Code ──────────────────────────────────────────────────────────────
-  // wdfx: x=0.788, y=1.905, w=17.842, h=25.014 → render as square (width)
+  // ── QR Code — exact wdfx position ────────────────────────────────────────
   const qrImg = new Image();
   qrImg.src = qrDataUrl;
   await new Promise<void>((res) => { qrImg.onload = () => res(); });
@@ -80,11 +79,15 @@ async function renderLabelCanvas(
 
   ctx.fillStyle = "#000";
 
-  // ── Font sizes ───────────────────────────────────────────────────────────
-  const bodyPx  = rf(3.999);  // body +1mm over wdfx 2.999 → 3.999mm
-  const codePx  = rf(5.644);  // code now uses the price size from wdfx
+  // ── Font sizes ────────────────────────────────────────────────────────────
+  const bodyPx = rf(3.999);  // +1mm over wdfx 2.999
+  const codePx = rf(5.644);  // code at original price size, bold
 
-  // Helper: hard-wrap text to fit within maxPx width
+  // ── Text column — x from wdfx, full width to right edge ──────────────────
+  const textX    = rx(21.5);
+  const textMaxW = W - textX - rx(2.5);
+
+  // Helper: wrap text to lines that fit maxPx width
   const wrapText = (text: string, font: string, maxPx: number): string[] => {
     ctx.font = font;
     if (ctx.measureText(text).width <= maxPx) return [text];
@@ -100,22 +103,33 @@ async function renderLabelCanvas(
     return lines;
   };
 
-  const lineH     = Math.round(bodyPx * 1.25);
-  const codeLineH = Math.round(codePx  * 1.25);
+  // ── Flow layout — no fixed y positions, each line advances y ─────────────
+  const bodyLineH = Math.round(bodyPx * 1.3);
+  const codeLineH = Math.round(codePx * 1.25);
+  const gap       = Math.round(bodyPx * 0.4);
 
-  // ── "Anu Fashions"  wdfx: x=22.685, y=4.532 ────────────────────────────
+  let y = ry(2.5);
+
+  // "Anu Fashions"
   ctx.font = `${bodyPx}px Arial`;
-  ctx.fillText("Anu Fashions", rx(22.685), ry(4.532));
+  ctx.fillText("Anu Fashions", textX, y);
+  y += bodyLineH;
 
-  // ── Item name  wdfx: x=22.455, y=8.464, w=20.050 ────────────────────────
+  // Item name (wrapped)
   ctx.font = `${bodyPx}px Arial`;
-  wrapText(product.name, `${bodyPx}px Arial`, rf(20.050))
-    .forEach((line, i) => ctx.fillText(line, rx(22.455), ry(8.464) + i * lineH));
+  for (const line of wrapText(product.name, `${bodyPx}px Arial`, textMaxW)) {
+    ctx.fillText(line, textX, y);
+    y += bodyLineH;
+  }
 
-  // ── Item code — bold, price size, wdfx: x=21.820, y=12.117, w=28.450 ───
+  y += gap;
+
+  // Code — bold, large
   ctx.font = `bold ${codePx}px Arial`;
-  wrapText(displayCode(product.code), `bold ${codePx}px Arial`, rf(28.450))
-    .forEach((line, i) => ctx.fillText(line, rx(21.820), ry(12.117) + i * codeLineH));
+  for (const line of wrapText(displayCode(product.code), `bold ${codePx}px Arial`, textMaxW)) {
+    ctx.fillText(line, textX, y);
+    y += codeLineH;
+  }
 
   return canvas;
 }
