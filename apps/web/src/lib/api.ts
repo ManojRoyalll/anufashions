@@ -14,6 +14,23 @@ function stockStatus(qty: number): 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' {
   return qty <= 0 ? 'OUT_OF_STOCK' : qty <= 5 ? 'LOW_STOCK' : 'IN_STOCK'
 }
 
+// Upload a base64 data URL to Supabase Storage and return the public URL.
+// Falls back to returning the original data URL if upload fails.
+export async function uploadBillPhoto(dataUrl: string): Promise<string> {
+  try {
+    const res = await fetch(dataUrl)
+    const blob = await res.blob()
+    const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
+    const path = `${crypto.randomUUID()}.${ext}`
+    const { error } = await supabase.storage.from('bill-photos').upload(path, blob, { contentType: blob.type, upsert: false })
+    if (error) return dataUrl
+    const { data } = supabase.storage.from('bill-photos').getPublicUrl(path)
+    return data.publicUrl
+  } catch {
+    return dataUrl
+  }
+}
+
 const api = {
   get: async (path: string, config?: { params?: Record<string, string>; responseType?: string }) => {
     const params = config?.params || {}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Check, ChevronDown, ChevronUp, Eye } from "lucide-react";
-import api from "@/lib/api";
+import { Plus, Trash2, Check, ChevronDown, ChevronUp, Eye, Pencil } from "lucide-react";
+import api, { uploadBillPhoto } from "@/lib/api";
 import { useToastStore } from "@/store/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,12 @@ export default function BuyPage() {
   // Purchase history
   const [history, setHistory] = useState<any[]>([]);
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editInvoiceNo, setEditInvoiceNo] = useState("");
+  const [editBillAmount, setEditBillAmount] = useState("");
+  const [editTransport, setEditTransport] = useState("");
+  const [editPhoto, setEditPhoto] = useState<string | undefined>();
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     api.get("/suppliers").then((r) => setSuppliers(r.data));
@@ -152,13 +158,18 @@ export default function BuyPage() {
 
       // Create purchase record (invoice)
       if (purchaseItems.length > 0) {
+        // Upload photo to storage first (avoids base64 in DB)
+        let photoUrl: string | undefined;
+        if (billPhoto) {
+          photoUrl = billPhoto.startsWith('data:') ? await uploadBillPhoto(billPhoto) : billPhoto;
+        }
         await api.post("/purchases", {
           purchaseDate: new Date(date).toISOString(),
           supplierId,
           invoiceNo: invoiceNo.trim() || `INV-${Date.now()}`,
           invoiceBillAmount: invoiceBillAmount ? Number(invoiceBillAmount) : undefined,
           transportCost: transportCost ? Number(transportCost) : 0,
-          billPhoto: billPhoto || undefined,
+          billPhoto: photoUrl,
           items: purchaseItems
         });
       }
@@ -190,6 +201,39 @@ export default function BuyPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const openEditRecord = (record: any) => {
+    setEditInvoiceNo(record.invoiceNo || "");
+    setEditBillAmount(record.invoiceBillAmount ? String(record.invoiceBillAmount) : "");
+    setEditTransport(record.transportCost ? String(record.transportCost) : "");
+    setEditPhoto(record.billPhoto || undefined);
+    setEditMode(true);
+  };
+
+  const saveEditRecord = async () => {
+    if (!detailRecord) return;
+    setEditSaving(true);
+    try {
+      let photoUrl = editPhoto;
+      if (editPhoto && editPhoto.startsWith('data:')) {
+        photoUrl = await uploadBillPhoto(editPhoto);
+      }
+      await api.put(`/purchases/${detailRecord.id}`, {
+        invoiceNo: editInvoiceNo || detailRecord.invoiceNo,
+        invoiceBillAmount: editBillAmount ? String(Number(editBillAmount)) : null,
+        transportCost: editTransport ? String(Number(editTransport)) : "0",
+        billPhoto: photoUrl || null,
+        updatedAt: new Date().toISOString(),
+      });
+      show("Invoice updated ✓");
+      const h = await api.get("/purchases");
+      setHistory(h.data);
+      const updated = h.data.find((p: any) => p.id === detailRecord.id);
+      if (updated) setDetailRecord(updated);
+      setEditMode(false);
+    } catch { show("Error saving", "error"); }
+    finally { setEditSaving(false); }
   };
 
   const deleteEntry = async (id: string) => {
@@ -455,9 +499,20 @@ export default function BuyPage() {
       </Card>
 
       {/* ── PURCHASE DETAIL DRAWER ── */}
-      <Drawer open={!!detailRecord} onClose={() => setDetailRecord(null)} title={`Purchase — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`}>
-        {detailRecord && (
+      <Drawer
+        open={!!detailRecord}
+        onClose={() => { setDetailRecord(null); setEditMode(false); }}
+        title={editMode ? "Edit Invoice" : `Purchase — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`}
+      >
+        {detailRecord && !editMode && (
           <>
+            {/* View mode header actions */}
+            <div className="flex gap-2">
+              <Button variant="secondary" className="flex-1" onClick={() => openEditRecord(detailRecord)}>
+                <Pencil className="mr-2 h-4 w-4" /> Edit Invoice
+              </Button>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-brand-50 rounded-xl p-3">
                 <p className="text-xs text-slate-500">Supplier</p>
@@ -519,7 +574,39 @@ export default function BuyPage() {
                 <p className="text-xs text-slate-400 mt-1 text-center">Tap to open full size</p>
               </div>
             )}
+            {!detailRecord.billPhoto && (
+              <div className="rounded-xl border-2 border-dashed border-brand-200 p-4 text-center">
+                <p className="text-sm text-slate-400">No bill photo — click Edit Invoice to add one</p>
+              </div>
+            )}
           </>
+        )}
+
+        {detailRecord && editMode && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Invoice No</p>
+              <Input value={editInvoiceNo} onChange={(e) => setEditInvoiceNo(e.target.value)} placeholder="INV-2026-001" autoComplete="off" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹)</p>
+              <Input type="number" value={editBillAmount} onChange={(e) => setEditBillAmount(e.target.value)} placeholder="0" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Transport Cost (₹)</p>
+              <Input type="number" value={editTransport} onChange={(e) => setEditTransport(e.target.value)} placeholder="0" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Bill Photo / బిల్లు ఫోటో</p>
+              <ImageUpload value={editPhoto} onChange={setEditPhoto} />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="secondary" className="flex-1" onClick={() => setEditMode(false)}>Cancel</Button>
+              <Button className="flex-1" onClick={saveEditRecord} disabled={editSaving}>
+                {editSaving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
         )}
       </Drawer>
     </div>

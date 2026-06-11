@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import api, { uploadBillPhoto } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
@@ -9,7 +9,7 @@ import { Drawer } from "@/components/ui/drawer";
 import { useToastStore } from "@/store/toast";
 import { useLang } from "@/hooks/use-lang";
 import { inr } from "@/lib/utils";
-import { Plus, Trash2, Eye } from "lucide-react";
+import { Plus, Trash2, Eye, Pencil } from "lucide-react";
 
 type Supplier = { id: string; name: string };
 type Product = { id: string; name: string; purchasePrice: number };
@@ -42,6 +42,12 @@ export default function InvoicesPage() {
   const [items, setItems] = useState<InvoiceItem[]>([emptyItem()]);
   const [saving, setSaving] = useState(false);
   const [detailRecord, setDetailRecord] = useState<PurchaseRecord | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editInvoiceNo, setEditInvoiceNo] = useState("");
+  const [editBillAmount, setEditBillAmount] = useState("");
+  const [editTransport, setEditTransport] = useState("");
+  const [editPhoto, setEditPhoto] = useState<string | undefined>();
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = () =>
     Promise.all([
@@ -74,12 +80,16 @@ export default function InvoicesPage() {
     if (validItems.length === 0) { show("Add at least one item", "error"); return; }
     setSaving(true);
     try {
+      let photoUrl: string | undefined;
+      if (billPhoto) {
+        photoUrl = billPhoto.startsWith('data:') ? await uploadBillPhoto(billPhoto) : billPhoto;
+      }
       await api.post("/purchases", {
         purchaseDate: new Date(date).toISOString(),
         supplierId,
         invoiceNo: invoiceNo || `INV-${Date.now()}`,
         invoiceBillAmount: totalAmount ? Number(totalAmount) : undefined,
-        billPhoto: billPhoto || undefined,
+        billPhoto: photoUrl || undefined,
         items: validItems.map(({ productId, quantity, costPrice }) => ({ productId, quantity, costPrice }))
       });
       show(t.recordPurchase + " ✓");
@@ -95,6 +105,39 @@ export default function InvoicesPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const openEditRecord = (record: PurchaseRecord) => {
+    setEditInvoiceNo(record.invoiceNo || "");
+    setEditBillAmount(record.invoiceBillAmount ? String(record.invoiceBillAmount) : "");
+    setEditTransport(record.transportCost ? String(record.transportCost) : "");
+    setEditPhoto(record.billPhoto || undefined);
+    setEditMode(true);
+  };
+
+  const saveEditRecord = async () => {
+    if (!detailRecord) return;
+    setEditSaving(true);
+    try {
+      let photoUrl = editPhoto;
+      if (editPhoto && editPhoto.startsWith('data:')) {
+        photoUrl = await uploadBillPhoto(editPhoto);
+      }
+      await api.put(`/purchases/${detailRecord.id}`, {
+        invoiceNo: editInvoiceNo || detailRecord.invoiceNo,
+        invoiceBillAmount: editBillAmount ? String(Number(editBillAmount)) : null,
+        transportCost: editTransport ? String(Number(editTransport)) : "0",
+        billPhoto: photoUrl || null,
+        updatedAt: new Date().toISOString(),
+      });
+      show("Invoice updated ✓");
+      load();
+      const h = await api.get("/purchases");
+      const updated = h.data.find((p: PurchaseRecord) => p.id === detailRecord.id);
+      if (updated) setDetailRecord(updated);
+      setEditMode(false);
+    } catch { show("Error saving", "error"); }
+    finally { setEditSaving(false); }
   };
 
   const deleteInvoice = async (id: string) => {
@@ -266,9 +309,19 @@ export default function InvoicesPage() {
       </Card>
 
       {/* Invoice detail side drawer */}
-      <Drawer open={!!detailRecord} onClose={() => setDetailRecord(null)} title={`Invoice — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`}>
-        {detailRecord && (
+      <Drawer
+        open={!!detailRecord}
+        onClose={() => { setDetailRecord(null); setEditMode(false); }}
+        title={editMode ? "Edit Invoice" : `Invoice — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`}
+      >
+        {detailRecord && !editMode && (
           <>
+            <div className="flex gap-2">
+              <Button variant="secondary" className="flex-1" onClick={() => openEditRecord(detailRecord)}>
+                <Pencil className="mr-2 h-4 w-4" /> Edit Invoice
+              </Button>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-brand-50 rounded-xl p-3">
                 <p className="text-xs text-slate-500">Supplier</p>
@@ -319,7 +372,7 @@ export default function InvoicesPage() {
               </div>
             </div>
 
-            {detailRecord.billPhoto && (
+            {detailRecord.billPhoto ? (
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Bill Photo / బిల్లు ఫోటో</p>
                 <a href={detailRecord.billPhoto} target="_blank" rel="noopener noreferrer">
@@ -327,8 +380,39 @@ export default function InvoicesPage() {
                 </a>
                 <p className="text-xs text-slate-400 mt-1 text-center">Tap to open full size</p>
               </div>
+            ) : (
+              <div className="rounded-xl border-2 border-dashed border-brand-200 p-4 text-center">
+                <p className="text-sm text-slate-400">No bill photo — click Edit Invoice to add one</p>
+              </div>
             )}
           </>
+        )}
+
+        {detailRecord && editMode && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Invoice No</p>
+              <input value={editInvoiceNo} onChange={(e) => setEditInvoiceNo(e.target.value)} placeholder="INV-2026-001" autoComplete="off" className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹)</p>
+              <input type="number" value={editBillAmount} onChange={(e) => setEditBillAmount(e.target.value)} placeholder="0" className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Transport Cost (₹)</p>
+              <input type="number" value={editTransport} onChange={(e) => setEditTransport(e.target.value)} placeholder="0" className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Bill Photo / బిల్లు ఫోటో</p>
+              <ImageUpload value={editPhoto} onChange={setEditPhoto} />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="secondary" className="flex-1" onClick={() => setEditMode(false)}>Cancel</Button>
+              <Button className="flex-1" onClick={saveEditRecord} disabled={editSaving}>
+                {editSaving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
         )}
       </Drawer>
     </div>
