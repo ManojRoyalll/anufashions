@@ -154,6 +154,9 @@ export default function ProductsPage() {
   const inventoryValue = products.reduce((s, p) => s + p.purchasePrice * p.quantity, 0);
 
   const columns = [
+    { key: "code", label: "Code", sortable: true, render: (p: Product) => (
+      <span className="font-mono text-xs text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">{p.code}</span>
+    )},
     { key: "name", label: t.sareeName, sortable: true },
     { key: "category", label: t.type, render: (p: Product) => p.category?.name ?? "-" },
     { key: "supplier", label: t.supplier, render: (p: Product) => p.supplier?.name ?? "-" },
