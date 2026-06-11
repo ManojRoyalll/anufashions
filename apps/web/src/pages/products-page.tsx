@@ -61,6 +61,8 @@ export default function ProductsPage() {
   const [showMore, setShowMore] = useState(false);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterSort, setFilterSort] = useState<"name" | "code" | "sellingPrice" | "quantity">("name");
+  const [filterSortDir, setFilterSortDir] = useState<"asc" | "desc">("asc");
 
   const { register, handleSubmit, reset, watch, control, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema)
@@ -86,11 +88,21 @@ export default function ProductsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = useMemo(() => products.filter((p) => {
-    if (filterCategory && p.category?.name !== filterCategory) return false;
-    if (filterStatus && p.stockStatus !== filterStatus) return false;
-    return true;
-  }), [products, filterCategory, filterStatus]);
+  const filtered = useMemo(() => {
+    let list = products.filter((p) => {
+      if (filterCategory && p.category?.name !== filterCategory) return false;
+      if (filterStatus && p.stockStatus !== filterStatus) return false;
+      return true;
+    });
+    list = [...list].sort((a, b) => {
+      const av = filterSort === "sellingPrice" || filterSort === "quantity" ? (a[filterSort] as number) : String(a[filterSort] ?? "").toLowerCase();
+      const bv = filterSort === "sellingPrice" || filterSort === "quantity" ? (b[filterSort] as number) : String(b[filterSort] ?? "").toLowerCase();
+      if (av < bv) return filterSortDir === "asc" ? -1 : 1;
+      if (av > bv) return filterSortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [products, filterCategory, filterStatus, filterSort, filterSortDir]);
 
   // Reset form values after modal opens so fields are mounted when reset fires
   useEffect(() => {
@@ -195,16 +207,30 @@ export default function ProductsPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-3 text-sm">
-        <span className="rounded-xl bg-white/80 px-3 py-1.5 font-medium shadow-sm">{products.length} {t.items}</span>
-        {lowCount > 0 && <span className="rounded-xl bg-amber-100 px-3 py-1.5 font-medium text-amber-700">{lowCount} {t.lowStock}</span>}
-        {outCount > 0 && <span className="rounded-xl bg-red-100 px-3 py-1.5 font-medium text-red-700">{outCount} {t.outOfStock}</span>}
-        <span className="rounded-xl bg-brand-100 px-3 py-1.5 font-medium text-brand-700">{inr(inventoryValue)}</span>
+      {/* ── Stats cards ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-2xl bg-white shadow-sm border border-brand-100 p-4">
+          <p className="text-xs text-slate-500 font-medium">Total Items</p>
+          <p className="text-2xl font-bold text-brand-900 mt-1">{products.length}</p>
+        </div>
+        <div className="rounded-2xl bg-white shadow-sm border border-brand-100 p-4">
+          <p className="text-xs text-slate-500 font-medium">Inventory Value</p>
+          <p className="text-2xl font-bold text-brand-700 mt-1">{inr(inventoryValue)}</p>
+        </div>
+        <div className={`rounded-2xl shadow-sm border p-4 ${lowCount > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-brand-100"}`}>
+          <p className="text-xs text-slate-500 font-medium">Low Stock</p>
+          <p className={`text-2xl font-bold mt-1 ${lowCount > 0 ? "text-amber-600" : "text-slate-400"}`}>{lowCount}</p>
+        </div>
+        <div className={`rounded-2xl shadow-sm border p-4 ${outCount > 0 ? "bg-red-50 border-red-200" : "bg-white border-brand-100"}`}>
+          <p className="text-xs text-slate-500 font-medium">Out of Stock</p>
+          <p className={`text-2xl font-bold mt-1 ${outCount > 0 ? "text-red-600" : "text-slate-400"}`}>{outCount}</p>
+        </div>
       </div>
 
       <Card>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-3">
+          {/* ── Filters + Sort ── */}
+          <div className="flex flex-wrap gap-2">
             <select className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
               <option value="">{t.types}</option>
               {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -215,6 +241,19 @@ export default function ProductsPage() {
               <option value="LOW_STOCK">{t.lowStock}</option>
               <option value="OUT_OF_STOCK">{t.outOfStock}</option>
             </select>
+            <div className="flex items-center gap-1 ml-auto">
+              <span className="text-xs text-slate-500">Sort:</span>
+              <select className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm" value={filterSort} onChange={(e) => setFilterSort(e.target.value as typeof filterSort)}>
+                <option value="name">Name</option>
+                <option value="code">Code</option>
+                <option value="sellingPrice">Price</option>
+                <option value="quantity">Quantity</option>
+              </select>
+              <button
+                onClick={() => setFilterSortDir((d) => d === "asc" ? "desc" : "asc")}
+                className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
+              >{filterSortDir === "asc" ? "↑" : "↓"}</button>
+            </div>
           </div>
           <DataTable columns={columns} data={filtered} searchable searchPlaceholder={t.search} searchKeys={["name", "code"]} />
         </CardContent>

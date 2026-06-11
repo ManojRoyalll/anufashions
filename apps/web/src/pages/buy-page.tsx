@@ -49,6 +49,7 @@ export default function BuyPage() {
   // Purchase history
   const [history, setHistory] = useState<any[]>([]);
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
+  const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editInvoiceNo, setEditInvoiceNo] = useState("");
   const [editBillAmount, setEditBillAmount] = useState("");
@@ -175,6 +176,7 @@ export default function BuyPage() {
       }
 
       show(`${saved} item${saved > 1 ? "s" : ""} added to stock ✓`);
+      setAddDrawerOpen(false);
 
       // Refresh
       const [updatedCats, updatedSups, updatedHistory] = await Promise.all([
@@ -248,228 +250,31 @@ export default function BuyPage() {
 
   return (
     <div className="space-y-5 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold text-brand-900">Buy Stock / సరుకు కొనుగోలు</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Add supplier, items purchased, prices — all in one place</p>
+      {/* ── HEADER ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-brand-900">Buy Stock / సరుకు కొనుగోలు</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{history.length} purchases recorded</p>
+        </div>
+        <button
+          onClick={() => setAddDrawerOpen(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-brand-700 text-white text-sm font-semibold rounded-xl hover:bg-brand-800 transition"
+        >
+          <Plus className="h-4 w-4" /> Add Bill
+        </button>
       </div>
 
-      <Card>
-        <CardContent className="space-y-5">
-          {/* ── SUPPLIER ── */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">
-              Supplier / సరఫరాదారు
-            </p>
-            {selectedSupplier ? (
-              <div className="flex items-center justify-between bg-brand-50 rounded-xl px-4 py-3">
-                <div>
-                  <p className="font-bold text-brand-900">{selectedSupplier.name}</p>
-                  {selectedSupplier.phone && <p className="text-xs text-slate-500">{selectedSupplier.phone}</p>}
-                </div>
-                <button onClick={() => { setSelectedSupplier(null); setNewSupplierName(""); setNewSupplierPhone(""); }} className="text-terra-500 text-sm font-medium">
-                  Change
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="relative">
-                  <Input
-                    placeholder="Search existing supplier by name or phone..."
-                    value={supplierQuery}
-                    onChange={(e) => { setSupplierQuery(e.target.value); setShowSupplierDrop(true); }}
-                    onFocus={() => setShowSupplierDrop(true)}
-                    autoComplete="off"
-                  />
-                  {showSupplierDrop && supplierMatches.length > 0 && (
-                    <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-brand-200 rounded-xl shadow-premium overflow-hidden">
-                      {supplierMatches.map((s) => (
-                        <button key={s.id} onClick={() => selectSupplier(s)} className="w-full text-left px-4 py-2.5 hover:bg-brand-50 border-b border-brand-50 last:border-0">
-                          <p className="font-semibold text-sm text-brand-900">{s.name}</p>
-                          {s.phone && <p className="text-xs text-slate-500">{s.phone}</p>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">New Supplier Name *</p>
-                    <Input placeholder="e.g. Franzil" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} autoComplete="off" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Phone (optional)</p>
-                    <Input placeholder="9876543210" value={newSupplierPhone} onChange={(e) => setNewSupplierPhone(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── INVOICE DETAILS (collapsible) ── */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowInvoiceDetails((v) => !v)}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-700"
-            >
-              {showInvoiceDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              Invoice Details (optional)
-            </button>
-            {showInvoiceDetails && (
-              <div className="mt-3 grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">{t.date}</p>
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">{t.invoiceNo}</p>
-                  <Input placeholder="INV-2026-001" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} autoComplete="off" />
-                </div>
-                <div className="col-span-2 space-y-3">
-                  <div>
-                    <p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹) <span className="text-slate-400 font-normal">— total on the invoice including GST</span></p>
-                    <Input type="number" placeholder="Amount on invoice bill" value={invoiceBillAmount} onChange={(e) => setInvoiceBillAmount(e.target.value)} />
-                    {invoiceBillAmount && totalInvestment > 0 && Math.abs(Number(invoiceBillAmount) - totalInvestment) > 1 && (
-                      <p className="text-xs mt-1 text-terra-600 font-medium">
-                        Diff from items cost: {Number(invoiceBillAmount) > totalInvestment ? "+" : ""}
-                        {(Number(invoiceBillAmount) - totalInvestment).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })}
-                        {" "}{Number(invoiceBillAmount) > totalInvestment ? "(includes GST/extra)" : "(discount given)"}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-brand-700 mb-1">Transport / Delivery Cost (₹) <span className="text-slate-400 font-normal">— courier, auto, lorry charges</span></p>
-                    <Input type="number" placeholder="0" value={transportCost} onChange={(e) => setTransportCost(e.target.value)} />
-                  </div>
-                  {/* True investment summary */}
-                  {(invoiceBillAmount || transportCost) && (
-                    <div className="rounded-xl bg-terra-50 px-4 py-3 text-sm space-y-1">
-                      <p className="font-bold text-terra-800 text-xs uppercase tracking-wide">True Investment for this purchase</p>
-                      {invoiceBillAmount && <div className="flex justify-between"><span className="text-slate-600">Invoice Bill</span><span className="font-semibold">₹{Number(invoiceBillAmount).toLocaleString("en-IN")}</span></div>}
-                      {transportCost && Number(transportCost) > 0 && <div className="flex justify-between"><span className="text-slate-600">Transport</span><span className="font-semibold">₹{Number(transportCost).toLocaleString("en-IN")}</span></div>}
-                      <div className="flex justify-between border-t border-terra-200 pt-1 font-bold text-terra-800">
-                        <span>Total Paid</span>
-                        <span>₹{((Number(invoiceBillAmount) || totalInvestment) + (Number(transportCost) || 0)).toLocaleString("en-IN")}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs text-slate-500 mb-1">{t.billPhoto}</p>
-                  <ImageUpload value={billPhoto} onChange={setBillPhoto} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── ITEMS ── */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">
-              Items Purchased / కొన్న వస్తువులు
-            </p>
-
-            <div className="space-y-3">
-              {items.map((item) => {
-                const buy = Number(item.buyPrice) || 0;
-                const sell = Number(item.sellPrice) || 0;
-                const profit = sell - buy;
-                return (
-                  <div key={item.id} className="bg-brand-50 rounded-xl p-3 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Item Name / సరుకు పేరు</p>
-                        <Input placeholder="Saree / item name" value={item.title} onChange={(e) => updateItem(item.id, "title", e.target.value)} autoComplete="off" />
-                      </div>
-                      <div style={{ width: "120px" }}>
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Item Code</p>
-                        <Input placeholder="e.g. SILK-001" value={item.itemCode} onChange={(e) => updateItem(item.id, "itemCode", e.target.value)} autoComplete="off" />
-                      </div>
-                      <button onClick={() => items.length > 1 ? removeItem(item.id) : undefined} className={`mt-5 p-2 rounded-xl ${items.length > 1 ? "text-red-400 hover:bg-red-100" : "text-slate-200"}`}>
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-brand-600 mb-1">Category / రకం</p>
-                      <Input
-                        placeholder="e.g. Cotton Sarees"
-                        value={item.categoryName}
-                        onChange={(e) => updateItem(item.id, "categoryName", e.target.value)}
-                        autoComplete="off"
-                        list={`cats-${item.id}`}
-                      />
-                      <datalist id={`cats-${item.id}`}>
-                        {existingCategories.map((c) => <option key={c.id} value={c.name} />)}
-                      </datalist>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Buy ₹ / కొన్న ధర</p>
-                        <Input type="number" placeholder="0" value={item.buyPrice} onChange={(e) => updateItem(item.id, "buyPrice", e.target.value)} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Sell ₹ / అమ్మే ధర</p>
-                        <Input type="number" placeholder="0" value={item.sellPrice} onChange={(e) => updateItem(item.id, "sellPrice", e.target.value)} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Max Disc % / తగ్గింపు</p>
-                        <Input type="number" placeholder="0" value={item.maxDiscount} onChange={(e) => updateItem(item.id, "maxDiscount", e.target.value)} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Qty / పీసులు</p>
-                        <Input type="number" placeholder="1" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", e.target.value)} />
-                      </div>
-                    </div>
-                    {buy > 0 && sell > 0 && (
-                      <p className={`text-xs font-semibold ${profit >= 0 ? "text-brand-600" : "text-terra-500"}`}>
-                        Profit: {inr(profit)} per piece ({buy > 0 ? ((profit / buy) * 100).toFixed(1) : 0}%)
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => setItems((prev) => [...prev, emptyItem()])}
-              className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-800 font-medium mt-2"
-            >
-              <Plus className="h-4 w-4" /> Add another item
-            </button>
-          </div>
-
-          {/* ── LIVE TOTALS ── */}
-          {totalInvestment > 0 && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-brand-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-slate-500">Total Investment</p>
-                <p className="font-bold text-brand-900 mt-0.5">{inr(totalInvestment)}</p>
-              </div>
-              <div className="bg-terra-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-slate-500">Expected Revenue</p>
-                <p className="font-bold text-terra-700 mt-0.5">{inr(expectedRevenue)}</p>
-              </div>
-              <div className="bg-brand-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-slate-500">Expected Profit</p>
-                <p className="font-bold text-brand-700 mt-0.5">{inr(expectedRevenue - totalInvestment)}</p>
-              </div>
-            </div>
-          )}
-
-          {/* ── SAVE ── */}
-          {validItems.length > 0 && (
-            <Button className="w-full py-4 text-base font-bold" onClick={saveAll} disabled={saving}>
-              {saving ? "Saving..." : `✅ Save ${validItems.length} Item${validItems.length > 1 ? "s" : ""} to Stock`}
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── PURCHASE HISTORY ── */}
+      {/* ── PURCHASE HISTORY (default view) ── */}
       <Card>
         <CardContent className="space-y-3">
           <h3 className="font-bold text-brand-900">Purchase History / కొన్న చరిత్ర</h3>
           {history.length === 0 ? (
-            <p className="text-center text-sm text-slate-400 py-6">No purchases yet</p>
+            <div className="text-center py-12 space-y-3">
+              <p className="text-slate-400 text-sm">No purchases yet</p>
+              <button onClick={() => setAddDrawerOpen(true)} className="px-4 py-2 bg-brand-700 text-white text-sm font-semibold rounded-xl hover:bg-brand-800 transition">
+                + Add First Bill
+              </button>
+            </div>
           ) : (
             <div className="space-y-2">
               {history.map((h) => (
@@ -497,6 +302,166 @@ export default function BuyPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── ADD BILL DRAWER ── */}
+      <Drawer open={addDrawerOpen} onClose={() => {
+        setAddDrawerOpen(false);
+        setItems([emptyItem()]);
+        setInvoiceNo(""); setInvoiceBillAmount(""); setTransportCost(""); setBillPhoto(undefined);
+        setSelectedSupplier(null); setNewSupplierName(""); setNewSupplierPhone("");
+        setDate(new Date().toISOString().slice(0, 10));
+        setShowInvoiceDetails(false);
+      }} title="Add Bill / బిల్లు చేర్చు">
+        <div className="space-y-5">
+          {/* ── SUPPLIER ── */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Supplier / సరఫరాదారు</p>
+            {selectedSupplier ? (
+              <div className="flex items-center justify-between bg-brand-50 rounded-xl px-4 py-3">
+                <div>
+                  <p className="font-bold text-brand-900">{selectedSupplier.name}</p>
+                  {selectedSupplier.phone && <p className="text-xs text-slate-500">{selectedSupplier.phone}</p>}
+                </div>
+                <button onClick={() => { setSelectedSupplier(null); setNewSupplierName(""); setNewSupplierPhone(""); }} className="text-terra-500 text-sm font-medium">Change</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Input placeholder="Search existing supplier..." value={supplierQuery}
+                    onChange={(e) => { setSupplierQuery(e.target.value); setShowSupplierDrop(true); }}
+                    onFocus={() => setShowSupplierDrop(true)} autoComplete="off" />
+                  {showSupplierDrop && supplierMatches.length > 0 && (
+                    <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-brand-200 rounded-xl shadow-premium overflow-hidden">
+                      {supplierMatches.map((s) => (
+                        <button key={s.id} onClick={() => selectSupplier(s)} className="w-full text-left px-4 py-2.5 hover:bg-brand-50 border-b border-brand-50 last:border-0">
+                          <p className="font-semibold text-sm text-brand-900">{s.name}</p>
+                          {s.phone && <p className="text-xs text-slate-500">{s.phone}</p>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">New Supplier Name *</p>
+                    <Input placeholder="e.g. Franzil" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} autoComplete="off" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Phone (optional)</p>
+                    <Input placeholder="9876543210" value={newSupplierPhone} onChange={(e) => setNewSupplierPhone(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── INVOICE DETAILS ── */}
+          <div>
+            <button type="button" onClick={() => setShowInvoiceDetails((v) => !v)}
+              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-700">
+              {showInvoiceDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              Invoice Details (optional)
+            </button>
+            {showInvoiceDetails && (
+              <div className="mt-3 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">{t.date}</p>
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">{t.invoiceNo}</p>
+                  <Input placeholder="INV-2026-001" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} autoComplete="off" />
+                </div>
+                <div className="col-span-2 space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹)</p>
+                    <Input type="number" placeholder="Amount on invoice" value={invoiceBillAmount} onChange={(e) => setInvoiceBillAmount(e.target.value)} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-brand-700 mb-1">Transport Cost (₹)</p>
+                    <Input type="number" placeholder="0" value={transportCost} onChange={(e) => setTransportCost(e.target.value)} />
+                  </div>
+                  {(invoiceBillAmount || transportCost) && (
+                    <div className="rounded-xl bg-terra-50 px-4 py-3 text-sm">
+                      <div className="flex justify-between font-bold text-terra-800">
+                        <span>Total Paid</span>
+                        <span>₹{((Number(invoiceBillAmount) || totalInvestment) + (Number(transportCost) || 0)).toLocaleString("en-IN")}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-500 mb-1">{t.billPhoto}</p>
+                  <ImageUpload value={billPhoto} onChange={setBillPhoto} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── ITEMS ── */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items / వస్తువులు</p>
+            <div className="space-y-3">
+              {items.map((item) => {
+                const buy = Number(item.buyPrice) || 0;
+                const sell = Number(item.sellPrice) || 0;
+                const profit = sell - buy;
+                return (
+                  <div key={item.id} className="bg-brand-50 rounded-xl p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Item Name</p>
+                        <Input placeholder="Saree / item name" value={item.title} onChange={(e) => updateItem(item.id, "title", e.target.value)} autoComplete="off" />
+                      </div>
+                      <div style={{ width: "110px" }}>
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Code</p>
+                        <Input placeholder="SILK-001" value={item.itemCode} onChange={(e) => updateItem(item.id, "itemCode", e.target.value)} autoComplete="off" />
+                      </div>
+                      <button onClick={() => items.length > 1 ? removeItem(item.id) : undefined} className={`mt-5 p-2 rounded-xl ${items.length > 1 ? "text-red-400 hover:bg-red-100" : "text-slate-200"}`}>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-brand-600 mb-1">Category</p>
+                      <Input placeholder="e.g. Cotton Sarees" value={item.categoryName} onChange={(e) => updateItem(item.id, "categoryName", e.target.value)} autoComplete="off" list={`cats-${item.id}`} />
+                      <datalist id={`cats-${item.id}`}>{existingCategories.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><p className="text-xs font-semibold text-brand-600 mb-1">Buy ₹</p><Input type="number" placeholder="0" value={item.buyPrice} onChange={(e) => updateItem(item.id, "buyPrice", e.target.value)} /></div>
+                      <div><p className="text-xs font-semibold text-brand-600 mb-1">Sell ₹</p><Input type="number" placeholder="0" value={item.sellPrice} onChange={(e) => updateItem(item.id, "sellPrice", e.target.value)} /></div>
+                      <div><p className="text-xs font-semibold text-brand-600 mb-1">Max Disc %</p><Input type="number" placeholder="0" value={item.maxDiscount} onChange={(e) => updateItem(item.id, "maxDiscount", e.target.value)} /></div>
+                      <div><p className="text-xs font-semibold text-brand-600 mb-1">Qty</p><Input type="number" placeholder="1" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", e.target.value)} /></div>
+                    </div>
+                    {buy > 0 && sell > 0 && (
+                      <p className={`text-xs font-semibold ${profit >= 0 ? "text-brand-600" : "text-terra-500"}`}>
+                        Profit: {inr(profit)} ({buy > 0 ? ((profit / buy) * 100).toFixed(1) : 0}%)
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={() => setItems((prev) => [...prev, emptyItem()])} className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-800 font-medium mt-2">
+              <Plus className="h-4 w-4" /> Add another item
+            </button>
+          </div>
+
+          {/* ── TOTALS ── */}
+          {totalInvestment > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-brand-50 rounded-xl p-3 text-center"><p className="text-xs text-slate-500">Investment</p><p className="font-bold text-brand-900 mt-0.5">{inr(totalInvestment)}</p></div>
+              <div className="bg-terra-50 rounded-xl p-3 text-center"><p className="text-xs text-slate-500">Revenue</p><p className="font-bold text-terra-700 mt-0.5">{inr(expectedRevenue)}</p></div>
+              <div className="bg-brand-50 rounded-xl p-3 text-center"><p className="text-xs text-slate-500">Profit</p><p className="font-bold text-brand-700 mt-0.5">{inr(expectedRevenue - totalInvestment)}</p></div>
+            </div>
+          )}
+
+          {validItems.length > 0 && (
+            <Button className="w-full py-4 text-base font-bold" onClick={saveAll} disabled={saving}>
+              {saving ? "Saving..." : `✅ Save ${validItems.length} Item${validItems.length > 1 ? "s" : ""} to Stock`}
+            </Button>
+          )}
+        </div>
+      </Drawer>
 
       {/* ── PURCHASE DETAIL DRAWER ── */}
       <Drawer

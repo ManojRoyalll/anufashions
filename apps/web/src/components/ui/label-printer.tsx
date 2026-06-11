@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { Printer, Settings2, Copy, Download, FileText, LayoutTemplate, RotateCcw } from "lucide-react";
+import { Settings2, Download, FileText, LayoutTemplate, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Drawer } from "@/components/ui/drawer";
 import { Modal } from "@/components/ui/modal";
@@ -312,10 +312,8 @@ export function LabelPrinter({ products }: Props) {
   const [layout, setLayout]         = useState<LabelLayout>(() => loadLayout(DEFAULT_SIZE));
   const [qrMap, setQrMap]           = useState<Record<string, string>>({});
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
-  const [copiedId, setCopiedId]     = useState<string | null>(null);
   const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
   const [pdfLoadingAll, setPdfLoadingAll] = useState(false);
-  const printFrameRef = useRef<HTMLIFrameElement>(null);
 
   // Save layout whenever it changes (debounced via useCallback + setState)
   useEffect(() => { saveLayout(labelSize, layout); }, [layout, labelSize]);
@@ -385,51 +383,7 @@ export function LabelPrinter({ products }: Props) {
     } finally { setPdfLoadingAll(false); }
   };
 
-  const copyLabelImage = async (product: Product) => {
-    const qr = await generateQR(product);
-    const canvas = await renderLabelCanvas(product, qr, labelSize, layout);
-    const blob = await new Promise<Blob>((res, rej) =>
-      canvas.toBlob((b) => b ? res(b) : rej(new Error("failed")), "image/png")
-    );
-    try {
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-      setCopiedId(product.id); setTimeout(() => setCopiedId(null), 2000);
-    } catch {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = `label-${safeName(product.name)}.png`; a.click();
-      URL.revokeObjectURL(url);
-    }
-  };
-
   const previewOne = async (product: Product) => { await generateQR(product); setPreviewProduct(product); };
-
-  const buildPrintHTML = (items: { product: Product; count: number; qr: string }[]) => {
-    const MM = (mm: number) => `${mm}mm`;
-    const labels = items.flatMap(({ product, count, qr }) =>
-      Array.from({ length: count }).map(() => `
-        <div class="label">
-          ${layout.qr.visible ? `<img class="qr" src="${qr}" style="position:absolute;left:${MM(layout.qr.x)};top:${MM(layout.qr.y)};width:${MM(layout.qr.size)};height:${MM(layout.qr.size)};" />` : ""}
-          ${layout.shopName.visible ? `<div style="position:absolute;left:${MM(layout.shopName.x)};top:${MM(layout.shopName.y)};font-size:${MM(layout.shopName.fontSize)};font-weight:${layout.shopName.bold?"bold":"normal"};">Anu Fashions</div>` : ""}
-          ${layout.itemName.visible ? `<div style="position:absolute;left:${MM(layout.itemName.x)};top:${MM(layout.itemName.y)};font-size:${MM(layout.itemName.fontSize)};font-weight:${layout.itemName.bold?"bold":"normal"};">${product.name}</div>` : ""}
-          ${layout.itemCode.visible ? `<div style="position:absolute;left:${MM(layout.itemCode.x)};top:${MM(layout.itemCode.y)};font-size:${MM(layout.itemCode.fontSize)};font-weight:${layout.itemCode.bold?"bold":"normal"};">${displayCode(product.code)}</div>` : ""}
-        </div>`)
-    );
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-      * { margin:0; padding:0; box-sizing:border-box; }
-      body { font-family:Arial,sans-serif; background:white; }
-      .label { position:relative; width:${labelSize.w}mm; height:${labelSize.h}mm; overflow:hidden; page-break-after:always; }
-      @media print { @page { size:${labelSize.w}mm ${labelSize.h}mm; margin:0; } body{margin:0;} }
-    </style></head><body>${labels.join("")}</body></html>`;
-  };
-
-  const printOne = async (product: Product) => {
-    const qr = await generateQR(product);
-    const html = buildPrintHTML([{ product, count: copies[product.id] ?? 1, qr }]);
-    const iframe = printFrameRef.current; if (!iframe) return;
-    const doc = iframe.contentDocument || iframe.contentWindow?.document; if (!doc) return;
-    doc.open(); doc.write(html); doc.close();
-    setTimeout(() => { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); }, 300);
-  };
 
   const totalLabels  = products.reduce((s, p) => s + (copies[p.id] ?? p.quantity ?? 1), 0);
   const activeItems  = products.filter((p) => (copies[p.id] ?? p.quantity ?? 1) > 0).length;
@@ -443,8 +397,6 @@ export function LabelPrinter({ products }: Props) {
         <FileText className="mr-2 h-4 w-4" />
         Labels
       </Button>
-
-      <iframe ref={printFrameRef} style={{ position:"fixed", top:-9999, left:-9999, width:0, height:0, border:"none" }} title="print" />
 
       <Drawer open={open} onClose={() => { setOpen(false); setEditLayout(false); }} title={editLayout ? "Edit Layout / లేఅవుట్ సవరించు" : "Labels / లేబుల్లు"}>
         <div className="space-y-4">
@@ -556,14 +508,7 @@ export function LabelPrinter({ products }: Props) {
                         <FileText className="h-3 w-3" />
                         {pdfLoadingId === p.id ? "Building…" : `PDF (${count})`}
                       </button>
-                      <button onClick={() => copyLabelImage(p)}
-                        className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition ${copiedId === p.id ? "bg-green-100 text-green-700 border-green-300" : "bg-white text-brand-600 border-brand-200 hover:bg-brand-50"}`}>
-                        <Copy className="h-3 w-3" />{copiedId === p.id ? "Copied!" : "Copy"}
-                      </button>
                       <button onClick={() => previewOne(p)} className="px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 transition">Preview</button>
-                      <button onClick={() => printOne(p)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 transition">
-                        <Printer className="h-3 w-3" /> Print
-                      </button>
                     </div>
                   </div>
                 );
@@ -597,9 +542,6 @@ export function LabelPrinter({ products }: Props) {
             </div>
             <div className="flex gap-2">
               <Button variant="secondary" className="flex-1" onClick={() => setPreviewProduct(null)}>Close</Button>
-              <Button variant="secondary" className="flex-1" onClick={() => copyLabelImage(previewProduct)}>
-                <Copy className="mr-2 h-3 w-3" />{copiedId === previewProduct.id ? "Copied!" : "Copy"}
-              </Button>
               <Button className="flex-1" onClick={() => { downloadPDFOne(previewProduct); setPreviewProduct(null); }}>
                 <Download className="mr-2 h-3 w-3" />PDF
               </Button>
