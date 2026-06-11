@@ -28,8 +28,11 @@ suppliersRouter.post("/", async (req, res, next) => {
     const body = supplierSchema.parse(req.body);
     const supplier = await prisma.supplier.create({
       data: {
-        ...body,
+        name: body.name!,
+        phone: body.phone,
+        address: body.address,
         email: body.email || null,
+        productsSupplied: body.productsSupplied,
         outstandingPayments: body.outstandingPayments ?? 0
       }
     });

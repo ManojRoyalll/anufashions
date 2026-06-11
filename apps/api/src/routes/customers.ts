@@ -24,7 +24,7 @@ customersRouter.get("/", async (_req, res, next) => {
 customersRouter.post("/", async (req, res, next) => {
   try {
     const body = customerSchema.parse(req.body);
-    const customer = await prisma.customer.create({ data: body });
+    const customer = await prisma.customer.create({ data: { name: body.name!, phone: body.phone, address: body.address, favoriteCategories: body.favoriteCategories } });
     res.status(201).json(normalizeData(customer));
   } catch (error) {
     next(error);

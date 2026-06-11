@@ -89,12 +89,22 @@ productsRouter.post("/", async (req, res, next) => {
 
     const product = await prisma.product.create({
       data: {
-        ...body,
-        barcode: body.barcode || null,
-        mrp: body.mrp ?? null,
+        code: body.code,
+        name: body.name,
+        categoryId: body.categoryId,
         supplierId: body.supplierId || null,
         priceRangeId,
+        purchasePrice: body.purchasePrice,
+        sellingPrice: body.sellingPrice,
+        mrp: body.mrp ?? null,
+        color: body.color,
+        size: body.size,
+        material: body.material,
+        quantity: body.quantity,
+        imageUrl: body.imageUrl,
         discountLimit: body.discountLimit ?? null,
+        barcode: body.barcode || null,
+        notes: body.notes,
         datePurchased: body.datePurchased ? new Date(body.datePurchased) : null,
         stockStatus: body.quantity <= 0 ? "OUT_OF_STOCK" : body.quantity <= 5 ? "LOW_STOCK" : "IN_STOCK"
       },
