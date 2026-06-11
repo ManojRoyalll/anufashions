@@ -143,9 +143,9 @@ export function LabelPrinter({ products }: Props) {
       <Modal open={open} onClose={() => setOpen(false)} title="Print Labels / లేబుల్లు ప్రింట్ చేయి" size="lg">
         <div className="space-y-4">
           {/* Label size controls */}
-          <div className="flex items-center justify-between bg-brand-50 rounded-xl px-4 py-2.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold text-brand-700">Label size:</span>
+          <div className="bg-brand-50 rounded-xl px-3 py-2.5 space-y-2">
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs font-semibold text-brand-700 mr-1">Size:</span>
               {LABEL_PRESETS.map((p) => (
                 <button
                   key={p.label}
@@ -162,43 +162,46 @@ export function LabelPrinter({ products }: Props) {
                 <Settings2 className="h-3 w-3" /> Custom
               </button>
             </div>
+            {showSizeSettings && (
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-brand-100">
+                <span className="text-xs text-slate-500">W(mm):</span>
+                <input type="number" value={customW} onChange={(e) => setCustomW(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
+                <span className="text-xs text-slate-500">×H(mm):</span>
+                <input type="number" value={customH} onChange={(e) => setCustomH(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
+                <button onClick={applyCustomSize} className="rounded-lg bg-brand-700 text-white px-3 py-1 text-xs font-semibold">Apply</button>
+                <span className="text-xs text-brand-600 font-semibold">{labelSize.w}×{labelSize.h}mm</span>
+              </div>
+            )}
           </div>
 
-          {showSizeSettings && (
-            <div className="flex items-center gap-2 bg-brand-50 rounded-xl px-4 py-2.5">
-              <span className="text-xs text-slate-500">Width (mm):</span>
-              <input type="number" value={customW} onChange={(e) => setCustomW(e.target.value)} className="w-16 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
-              <span className="text-xs text-slate-500">× Height (mm):</span>
-              <input type="number" value={customH} onChange={(e) => setCustomH(e.target.value)} className="w-16 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
-              <button onClick={applyCustomSize} className="rounded-lg bg-brand-700 text-white px-3 py-1 text-xs font-semibold">Apply</button>
-              <span className="text-xs text-brand-600 font-semibold">{labelSize.w}×{labelSize.h}mm active</span>
-            </div>
-          )}
-
-          {/* Item list with quantity control */}
-          <div className="max-h-80 overflow-y-auto space-y-1.5">
+          {/* Item list with quantity control — stacked on mobile */}
+          <div className="max-h-72 overflow-y-auto space-y-2">
             {products.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-xl bg-brand-50 px-3 py-2.5">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-brand-900 truncate">{p.name}</p>
+              <div key={p.id} className="rounded-xl bg-brand-50 p-3 space-y-2">
+                {/* Item name + details */}
+                <div>
+                  <p className="text-sm font-semibold text-brand-900">{p.name}</p>
                   <p className="text-xs text-slate-500">{displayCode(p.code)} · {p.category?.name} · {inr(p.sellingPrice)} · Stock: {p.quantity}</p>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-xs text-slate-500">Labels:</span>
-                  <button onClick={() => setCopy(p.id, (copies[p.id] || p.quantity || 1) - 1)} className="w-7 h-7 rounded-lg bg-white border border-brand-200 text-brand-700 font-bold flex items-center justify-center hover:bg-brand-100">−</button>
-                  <input
-                    type="number"
-                    value={copies[p.id] ?? p.quantity ?? 1}
-                    onChange={(e) => setCopy(p.id, Number(e.target.value))}
-                    className="w-12 text-center text-sm font-bold rounded-lg border border-brand-200 py-1"
-                  />
-                  <button onClick={() => setCopy(p.id, (copies[p.id] || p.quantity || 1) + 1)} className="w-7 h-7 rounded-lg bg-white border border-brand-200 text-brand-700 font-bold flex items-center justify-center hover:bg-brand-100">+</button>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <button onClick={() => previewOne(p)} className="px-2.5 py-1.5 text-xs text-brand-600 border border-brand-200 bg-white rounded-lg hover:bg-brand-50">Preview</button>
-                  <button onClick={() => printOne(p)} className="px-2.5 py-1.5 text-xs text-white bg-brand-700 rounded-lg hover:bg-brand-800 flex items-center gap-1">
-                    <Printer className="h-3 w-3" /> Print
-                  </button>
+                {/* Controls row */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500">Labels:</span>
+                    <button onClick={() => setCopy(p.id, (copies[p.id] || p.quantity || 1) - 1)} className="w-8 h-8 rounded-lg bg-white border border-brand-200 text-brand-700 font-bold flex items-center justify-center hover:bg-brand-100">−</button>
+                    <input
+                      type="number"
+                      value={copies[p.id] ?? p.quantity ?? 1}
+                      onChange={(e) => setCopy(p.id, Number(e.target.value))}
+                      className="w-14 text-center text-sm font-bold rounded-lg border border-brand-200 py-1.5"
+                    />
+                    <button onClick={() => setCopy(p.id, (copies[p.id] || p.quantity || 1) + 1)} className="w-8 h-8 rounded-lg bg-white border border-brand-200 text-brand-700 font-bold flex items-center justify-center hover:bg-brand-100">+</button>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => previewOne(p)} className="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 bg-white rounded-lg hover:bg-brand-50 font-medium">Preview</button>
+                    <button onClick={() => printOne(p)} className="px-3 py-1.5 text-xs text-white bg-brand-700 rounded-lg hover:bg-brand-800 flex items-center gap-1 font-medium">
+                      <Printer className="h-3 w-3" /> Print
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
