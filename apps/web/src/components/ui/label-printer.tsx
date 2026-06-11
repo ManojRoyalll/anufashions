@@ -211,6 +211,48 @@ function CanvasPreview({ product, qr, size, layout }: { product: Product; qr: st
     : <div style={{ width: maxW, height: maxH, background: "#f5f5f0", borderRadius: 6 }} className="animate-pulse" />;
 }
 
+// ── SLIDER CONTROL ────────────────────────────────────────────────────────────
+// Touch-friendly: slider + − value + buttons. No keyboard input needed.
+function SliderControl({
+  label, value, min, max, step = 0.5, onChange,
+}: {
+  label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void;
+}) {
+  const clamp = (v: number) => Math.round(Math.min(max, Math.max(min, v)) / step) * step;
+  const dec = () => onChange(clamp(value - step));
+  const inc = () => onChange(clamp(value + step));
+  const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-brand-700">{label}</span>
+        <span className="text-[11px] font-bold text-brand-900 tabular-nums">{value.toFixed(1)} mm</span>
+      </div>
+      {/* Slider */}
+      <div className="relative h-6 flex items-center">
+        <div className="absolute inset-x-0 h-1.5 rounded-full bg-brand-100" />
+        <div className="absolute h-1.5 rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
+        <input
+          type="range" min={min} max={max} step={step} value={value}
+          onChange={(e) => onChange(clamp(Number(e.target.value)))}
+          className="relative w-full h-1.5 appearance-none bg-transparent cursor-pointer
+            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand-700
+            [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer
+            [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
+            [&::-moz-range-thumb]:bg-brand-700 [&::-moz-range-thumb]:border-0"
+        />
+      </div>
+      {/* − value + row */}
+      <div className="flex items-center gap-2">
+        <button onClick={dec} className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100 active:bg-brand-200 touch-manipulation select-none">−</button>
+        <div className="flex-1 text-center text-sm font-bold text-brand-900 bg-brand-50 rounded-xl py-2">{value.toFixed(1)}</div>
+        <button onClick={inc} className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100 active:bg-brand-200 touch-manipulation select-none">+</button>
+      </div>
+    </div>
+  );
+}
+
 // ── FIELD ROW ─────────────────────────────────────────────────────────────────
 function FieldRow({
   label, cfg, onChange, showBold = false,
@@ -222,41 +264,26 @@ function FieldRow({
   showBold?: boolean;
   xMax: number; yMax: number;
 }) {
-  const inp = "w-14 rounded-lg border border-brand-200 px-1.5 py-1 text-xs text-center focus:border-brand-500 focus:outline-none";
   return (
-    <div className="rounded-xl border border-brand-100 bg-white p-2.5 space-y-1.5">
+    <div className="rounded-xl border border-brand-100 bg-white p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-brand-800">{label}</span>
-        <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer select-none">
-          <input type="checkbox" checked={cfg.visible} onChange={(e) => onChange({ visible: e.target.checked })} className="accent-brand-700" />
+        <span className="text-sm font-bold text-brand-800">{label}</span>
+        <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer select-none">
+          <input type="checkbox" checked={cfg.visible} onChange={(e) => onChange({ visible: e.target.checked })} className="w-4 h-4 accent-brand-700" />
           Show
         </label>
       </div>
       {cfg.visible && (
-        <div className="grid grid-cols-4 gap-1.5 items-center">
-          <div className="space-y-0.5">
-            <p className="text-[10px] text-slate-400 text-center">X (mm)</p>
-            <input type="number" className={inp} value={cfg.x} min={0} max={xMax} step={0.5}
-              onChange={(e) => onChange({ x: Math.max(0, Math.min(xMax, Number(e.target.value))) })} />
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-[10px] text-slate-400 text-center">Y (mm)</p>
-            <input type="number" className={inp} value={cfg.y} min={0} max={yMax} step={0.5}
-              onChange={(e) => onChange({ y: Math.max(0, Math.min(yMax, Number(e.target.value))) })} />
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-[10px] text-slate-400 text-center">Size (mm)</p>
-            <input type="number" className={inp} value={cfg.fontSize} min={1} max={20} step={0.5}
-              onChange={(e) => onChange({ fontSize: Math.max(1, Math.min(20, Number(e.target.value))) })} />
-          </div>
-          {showBold ? (
-            <div className="space-y-0.5">
-              <p className="text-[10px] text-slate-400 text-center">Bold</p>
-              <div className="flex justify-center">
-                <input type="checkbox" checked={cfg.bold} onChange={(e) => onChange({ bold: e.target.checked })} className="w-4 h-4 accent-brand-700 mt-1" />
-              </div>
-            </div>
-          ) : <div />}
+        <div className="space-y-3">
+          <SliderControl label="X position" value={cfg.x} min={0} max={xMax} onChange={(v) => onChange({ x: v })} />
+          <SliderControl label="Y position" value={cfg.y} min={0} max={yMax} onChange={(v) => onChange({ y: v })} />
+          <SliderControl label="Font size" value={cfg.fontSize} min={1} max={20} onChange={(v) => onChange({ fontSize: v })} />
+          {showBold && (
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+              <input type="checkbox" checked={cfg.bold} onChange={(e) => onChange({ bold: e.target.checked })} className="w-4 h-4 accent-brand-700" />
+              Bold text
+            </label>
+          )}
         </div>
       )}
     </div>
@@ -265,33 +292,20 @@ function FieldRow({
 
 // ── QR ROW ────────────────────────────────────────────────────────────────────
 function QrRow({ cfg, onChange, xMax, yMax }: { cfg: QrCfg; onChange: (c: Partial<QrCfg>) => void; xMax: number; yMax: number }) {
-  const inp = "w-14 rounded-lg border border-brand-200 px-1.5 py-1 text-xs text-center focus:border-brand-500 focus:outline-none";
   return (
-    <div className="rounded-xl border border-brand-100 bg-white p-2.5 space-y-1.5">
+    <div className="rounded-xl border border-brand-100 bg-white p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-brand-800">QR Code</span>
-        <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer select-none">
-          <input type="checkbox" checked={cfg.visible} onChange={(e) => onChange({ visible: e.target.checked })} className="accent-brand-700" />
+        <span className="text-sm font-bold text-brand-800">QR Code</span>
+        <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer select-none">
+          <input type="checkbox" checked={cfg.visible} onChange={(e) => onChange({ visible: e.target.checked })} className="w-4 h-4 accent-brand-700" />
           Show
         </label>
       </div>
       {cfg.visible && (
-        <div className="grid grid-cols-3 gap-1.5 items-center">
-          <div className="space-y-0.5">
-            <p className="text-[10px] text-slate-400 text-center">X (mm)</p>
-            <input type="number" className={inp} value={cfg.x} min={0} max={xMax} step={0.5}
-              onChange={(e) => onChange({ x: Math.max(0, Math.min(xMax, Number(e.target.value))) })} />
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-[10px] text-slate-400 text-center">Y (mm)</p>
-            <input type="number" className={inp} value={cfg.y} min={0} max={yMax} step={0.5}
-              onChange={(e) => onChange({ y: Math.max(0, Math.min(yMax, Number(e.target.value))) })} />
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-[10px] text-slate-400 text-center">Size (mm)</p>
-            <input type="number" className={inp} value={cfg.size} min={5} max={Math.min(xMax, yMax)} step={0.5}
-              onChange={(e) => onChange({ size: Math.max(5, Number(e.target.value)) })} />
-          </div>
+        <div className="space-y-3">
+          <SliderControl label="X position" value={cfg.x} min={0} max={xMax} onChange={(v) => onChange({ x: v })} />
+          <SliderControl label="Y position" value={cfg.y} min={0} max={yMax} onChange={(v) => onChange({ y: v })} />
+          <SliderControl label="Size" value={cfg.size} min={5} max={Math.min(xMax, yMax)} onChange={(v) => onChange({ size: v })} />
         </div>
       )}
     </div>
