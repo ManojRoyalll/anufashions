@@ -297,44 +297,55 @@ export default function BuyPage() {
               Items Purchased / కొన్న వస్తువులు
             </p>
 
-            {/* Column headers */}
-            <div className="grid gap-2 mb-1 px-1" style={{ gridTemplateColumns: "2fr 1.2fr 1fr 1fr 0.8fr 0.8fr auto" }}>
-              {["Item Name", "Category", "Buy ₹", "Sell ₹", "Disc%", "Qty", ""].map((h) => (
-                <p key={h} className="text-xs font-semibold text-brand-600">{h}</p>
-              ))}
-            </div>
-
-            <div className="space-y-2">
+            <div className="space-y-3">
               {items.map((item) => {
                 const buy = Number(item.buyPrice) || 0;
                 const sell = Number(item.sellPrice) || 0;
                 const profit = sell - buy;
                 return (
-                  <div key={item.id} className="space-y-1">
-                    <div className="grid gap-2 items-center" style={{ gridTemplateColumns: "2fr 1.2fr 1fr 1fr 0.8fr 0.8fr auto" }}>
-                      <Input placeholder="Saree / item name" value={item.title} onChange={(e) => updateItem(item.id, "title", e.target.value)} autoComplete="off" />
-                      <div className="relative">
-                        <Input
-                          placeholder="Category"
-                          value={item.categoryName}
-                          onChange={(e) => updateItem(item.id, "categoryName", e.target.value)}
-                          autoComplete="off"
-                          list={`cats-${item.id}`}
-                        />
-                        <datalist id={`cats-${item.id}`}>
-                          {existingCategories.map((c) => <option key={c.id} value={c.name} />)}
-                        </datalist>
+                  <div key={item.id} className="bg-brand-50 rounded-xl p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Item Name / సరుకు పేరు</p>
+                        <Input placeholder="Saree / item name" value={item.title} onChange={(e) => updateItem(item.id, "title", e.target.value)} autoComplete="off" />
                       </div>
-                      <Input type="number" placeholder="0" value={item.buyPrice} onChange={(e) => updateItem(item.id, "buyPrice", e.target.value)} />
-                      <Input type="number" placeholder="0" value={item.sellPrice} onChange={(e) => updateItem(item.id, "sellPrice", e.target.value)} />
-                      <Input type="number" placeholder="20" value={item.maxDiscount} onChange={(e) => updateItem(item.id, "maxDiscount", e.target.value)} />
-                      <Input type="number" placeholder="1" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", e.target.value)} />
-                      <button onClick={() => items.length > 1 ? removeItem(item.id) : undefined} className={`p-2 rounded-xl ${items.length > 1 ? "text-red-400 hover:bg-red-50" : "text-slate-200"}`}>
-                        <Trash2 className="h-3.5 w-3.5" />
+                      <button onClick={() => items.length > 1 ? removeItem(item.id) : undefined} className={`mt-5 p-2 rounded-xl ${items.length > 1 ? "text-red-400 hover:bg-red-100" : "text-slate-200"}`}>
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
+                    <div>
+                      <p className="text-xs font-semibold text-brand-600 mb-1">Category / రకం</p>
+                      <Input
+                        placeholder="e.g. Cotton Sarees"
+                        value={item.categoryName}
+                        onChange={(e) => updateItem(item.id, "categoryName", e.target.value)}
+                        autoComplete="off"
+                        list={`cats-${item.id}`}
+                      />
+                      <datalist id={`cats-${item.id}`}>
+                        {existingCategories.map((c) => <option key={c.id} value={c.name} />)}
+                      </datalist>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Buy ₹ / కొన్న ధర</p>
+                        <Input type="number" placeholder="0" value={item.buyPrice} onChange={(e) => updateItem(item.id, "buyPrice", e.target.value)} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Sell ₹ / అమ్మే ధర</p>
+                        <Input type="number" placeholder="0" value={item.sellPrice} onChange={(e) => updateItem(item.id, "sellPrice", e.target.value)} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Max Disc % / తగ్గింపు</p>
+                        <Input type="number" placeholder="0" value={item.maxDiscount} onChange={(e) => updateItem(item.id, "maxDiscount", e.target.value)} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Qty / పీసులు</p>
+                        <Input type="number" placeholder="1" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", e.target.value)} />
+                      </div>
+                    </div>
                     {buy > 0 && sell > 0 && (
-                      <p className={`text-xs ml-1 font-semibold ${profit >= 0 ? "text-brand-600" : "text-terra-500"}`}>
+                      <p className={`text-xs font-semibold ${profit >= 0 ? "text-brand-600" : "text-terra-500"}`}>
                         Profit: {inr(profit)} per piece ({buy > 0 ? ((profit / buy) * 100).toFixed(1) : 0}%)
                       </p>
                     )}
@@ -385,35 +396,25 @@ export default function BuyPage() {
           {history.length === 0 ? (
             <p className="text-center text-sm text-slate-400 py-6">No purchases yet</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-500 border-b border-brand-100">
-                    <th className="pb-2 font-semibold">{t.date}</th>
-                    <th className="pb-2 font-semibold">{t.supplier}</th>
-                    <th className="pb-2 font-semibold">{t.invoiceNo}</th>
-                    <th className="pb-2 font-semibold text-right">{t.items}</th>
-                    <th className="pb-2 font-semibold text-right">{t.total}</th>
-                    <th className="pb-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h) => (
-                    <tr key={h.id} className="border-t border-brand-50 hover:bg-brand-50/40">
-                      <td className="py-2">{new Date(h.purchaseDate).toLocaleDateString("en-IN")}</td>
-                      <td className="font-medium">{h.supplier?.name ?? "-"}</td>
-                      <td className="text-slate-500">{h.invoiceNo || "-"}</td>
-                      <td className="text-right">{h.items?.length ?? 0}</td>
-                      <td className="text-right font-semibold text-brand-800">{inr(Number(h.totalAmount))}</td>
-                      <td className="text-right">
-                        <button onClick={() => deleteEntry(h.id)} className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-2">
+              {history.map((h) => (
+                <div key={h.id} className="flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-brand-900 text-sm">{h.supplier?.name ?? "-"}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {h.purchaseDate ? new Date(h.purchaseDate).toLocaleDateString("en-IN") : "-"}
+                      {h.invoiceNo ? ` · ${h.invoiceNo}` : ""}
+                      {` · ${h.items?.length ?? 0} items`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    <p className="font-bold text-brand-800">{inr(Number(h.totalAmount))}</p>
+                    <button onClick={() => deleteEntry(h.id)} className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

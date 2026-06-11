@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, X, Trash2 } from "lucide-react";
+import { AlertTriangle, X, Trash2, ScanLine } from "lucide-react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToastStore } from "@/store/toast";
 import { useLang } from "@/hooks/use-lang";
 import { inr } from "@/lib/utils";
+import { QRScanner } from "@/components/ui/qr-scanner";
 
 type CartItem = {
   productId: string; name: string; quantity: number;
@@ -42,6 +43,9 @@ export default function SalesPage() {
 
   // Cart
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  // QR Scanner
+  const [showScanner, setShowScanner] = useState(false);
 
   // Discount
   const [discountChip, setDiscountChip] = useState<number | null>(0);
@@ -106,6 +110,22 @@ export default function SalesPage() {
     setNewCustomerName("");
     setNewCustomerPhone("");
     setCustomerQuery("");
+  };
+
+  // QR scan handler — parses "CODE | Name | ₹Price" from label
+  const handleQRScan = (data: string) => {
+    setShowScanner(false);
+    // Try to match by code (first segment before |)
+    const code = data.split("|")[0].trim();
+    const found = products.find(
+      (p) => p.code === code || p.name.toLowerCase() === code.toLowerCase()
+    );
+    if (found) {
+      addToCart(found);
+      show(`${found.name} added to bill ✓`);
+    } else {
+      show(`Item not found for code: ${code}`, "error");
+    }
   };
 
   // Filtered products
@@ -270,6 +290,10 @@ export default function SalesPage() {
   };
 
   return (
+    <>
+      {showScanner && (
+        <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
+      )}
     <div className="space-y-5">
       {/* POS GRID */}
       <div className="grid gap-4 xl:grid-cols-[1.3fr_0.95fr]">
@@ -278,7 +302,17 @@ export default function SalesPage() {
         <Card>
           <CardContent className="space-y-3">
             <h2 className="text-xl font-bold text-brand-900">{t.sell} 🛒</h2>
-            <Input placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+            <div className="flex gap-2">
+              <Input placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+              <button
+                onClick={() => setShowScanner(true)}
+                className="shrink-0 flex items-center gap-1.5 rounded-xl bg-brand-700 text-white px-3 py-2 text-sm font-semibold hover:bg-brand-800 transition"
+                title="Scan QR code"
+              >
+                <ScanLine className="h-4 w-4" />
+                <span className="hidden sm:inline">Scan</span>
+              </button>
+            </div>
             <div className="max-h-[500px] space-y-2 overflow-auto pr-1">
               {query.trim().length === 0 ? (
                 <div className="text-center py-10 text-slate-400">
@@ -334,7 +368,11 @@ export default function SalesPage() {
                 <div className="space-y-2 max-h-[340px] overflow-auto pr-1">
                   {cart.map((item) => {
                     const lineTotal = item.quantity * item.unitPrice;
-                    const itemProfit = (item.unitPrice - item.purchasePrice) * item.quantity;
+                    // Apply the bill-level discount proportionally to show per-item profit
+                    const billDiscount = discountAmount > 0 && subtotal > 0
+                      ? (item.quantity * item.unitPrice / subtotal) * discountAmount
+                      : 0;
+                    const itemProfit = (item.unitPrice - item.purchasePrice) * item.quantity - billDiscount;
                     const priceChanged = item.unitPrice !== item.originalPrice;
                     return (
                       <div key={item.productId} className="bg-brand-50 rounded-xl p-3 space-y-2">
@@ -676,5 +714,6 @@ export default function SalesPage() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }
