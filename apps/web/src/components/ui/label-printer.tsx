@@ -80,9 +80,9 @@ async function renderLabelCanvas(
 
   ctx.fillStyle = "#000";
 
-  // ── Font sizes (wdfx fontHeight in mm) ───────────────────────────────────
-  const bodyPx  = rf(2.999);  // body: 2.999mm
-  const pricePx = rf(5.644);  // price: 5.644mm
+  // ── Font sizes ───────────────────────────────────────────────────────────
+  const bodyPx  = rf(3.999);  // body +1mm over wdfx 2.999 → 3.999mm
+  const codePx  = rf(5.644);  // code now uses the price size from wdfx
 
   // Helper: hard-wrap text to fit within maxPx width
   const wrapText = (text: string, font: string, maxPx: number): string[] => {
@@ -100,25 +100,22 @@ async function renderLabelCanvas(
     return lines;
   };
 
-  const lineH = Math.round(bodyPx * 1.25); // line spacing
+  const lineH     = Math.round(bodyPx * 1.25);
+  const codeLineH = Math.round(codePx  * 1.25);
 
-  // ── "Anu Fashions"  wdfx: x=22.685, y=4.532, fontH=2.999 ───────────────
+  // ── "Anu Fashions"  wdfx: x=22.685, y=4.532 ────────────────────────────
   ctx.font = `${bodyPx}px Arial`;
   ctx.fillText("Anu Fashions", rx(22.685), ry(4.532));
 
-  // ── Item name  wdfx: x=22.455, y=8.464, w=20.050, fontH=2.999 ───────────
+  // ── Item name  wdfx: x=22.455, y=8.464, w=20.050 ────────────────────────
   ctx.font = `${bodyPx}px Arial`;
   wrapText(product.name, `${bodyPx}px Arial`, rf(20.050))
     .forEach((line, i) => ctx.fillText(line, rx(22.455), ry(8.464) + i * lineH));
 
-  // ── Item code  wdfx: x=21.820, y=12.117, w=28.450, fontH=2.999  — BOLD ──
-  ctx.font = `bold ${bodyPx}px Arial`;
-  wrapText(displayCode(product.code), `bold ${bodyPx}px Arial`, rf(28.450))
-    .forEach((line, i) => ctx.fillText(line, rx(21.820), ry(12.117) + i * lineH));
-
-  // ── Price  wdfx: x=23.167, y=19.086, fontH=5.644 ────────────────────────
-  ctx.font = `${pricePx}px Arial`;
-  ctx.fillText(inr(product.sellingPrice), rx(23.167), ry(19.086));
+  // ── Item code — bold, price size, wdfx: x=21.820, y=12.117, w=28.450 ───
+  ctx.font = `bold ${codePx}px Arial`;
+  wrapText(displayCode(product.code), `bold ${codePx}px Arial`, rf(28.450))
+    .forEach((line, i) => ctx.fillText(line, rx(21.820), ry(12.117) + i * codeLineH));
 
   return canvas;
 }
