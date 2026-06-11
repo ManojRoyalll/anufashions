@@ -3,7 +3,9 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { config } from "../config";
-import { prisma } from "../lib/prisma";
+import { db } from "../lib/db";
+import { users } from "../lib/schema";
+import { eq } from "drizzle-orm";
 
 export const authRouter = Router();
 
@@ -15,20 +17,20 @@ const authSchema = z.object({
 authRouter.post("/register", async (req, res, next) => {
   try {
     const body = authSchema.extend({ name: z.string().min(2) }).parse(req.body);
-    const existing = await prisma.user.findUnique({ where: { email: body.email } });
+    const existing = await db.select().from(users).where(eq(users.email, body.email));
 
-    if (existing) {
+    if (existing.length > 0) {
       return res.status(409).json({ message: "User already exists" });
     }
 
     const passwordHash = await bcrypt.hash(body.password, 10);
-    const user = await prisma.user.create({
-      data: {
-        name: body.name,
-        email: body.email,
-        passwordHash
-      }
-    });
+    const [user] = await db.insert(users).values({
+      id: crypto.randomUUID(),
+      name: body.name,
+      email: body.email,
+      passwordHash,
+      updatedAt: new Date()
+    }).returning();
 
     return res.status(201).json({ id: user.id, email: user.email, name: user.name });
   } catch (error) {
@@ -39,7 +41,8 @@ authRouter.post("/register", async (req, res, next) => {
 authRouter.post("/login", async (req, res, next) => {
   try {
     const body = authSchema.parse(req.body);
-    const user = await prisma.user.findUnique({ where: { email: body.email } });
+    const rows = await db.select().from(users).where(eq(users.email, body.email));
+    const user = rows[0];
 
     if (!user) return res.status(401).json({ message: "Invalid credentials" });
 

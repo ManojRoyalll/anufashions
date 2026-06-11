@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
-import { toNumber } from "../utils/serializers";
+import { db } from "../lib/db";
+import { priceRanges, products } from "../lib/schema";
+import { eq, asc, and, gte, lte, isNotNull, sql } from "drizzle-orm";
 
 export const priceRangesRouter = Router();
 
@@ -13,44 +14,81 @@ const schema = z.object({
 
 priceRangesRouter.get("/", async (_req, res, next) => {
   try {
-    const ranges = await prisma.priceRange.findMany({ orderBy: { minPrice: "asc" } });
-    const counts = await prisma.product.groupBy({
-      by: ["priceRangeId"],
-      _count: { id: true }
-    });
-    const countMap = new Map(counts.map((c) => [c.priceRangeId, c._count.id]));
-    res.json(ranges.map((r) => ({ ...r, minPrice: toNumber(r.minPrice), maxPrice: toNumber(r.maxPrice), itemCount: countMap.get(r.id) ?? 0 })));
+    const ranges = await db.select().from(priceRanges).orderBy(asc(priceRanges.minPrice));
+    // Get item counts per price range
+    const countRows = await db
+      .select({ priceRangeId: products.priceRangeId, count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(isNotNull(products.priceRangeId))
+      .groupBy(products.priceRangeId);
+    const countMap = new Map(countRows.map((c) => [c.priceRangeId, c.count]));
+    res.json(
+      ranges.map((r) => ({
+        ...r,
+        minPrice: Number(r.minPrice),
+        maxPrice: Number(r.maxPrice),
+        itemCount: countMap.get(r.id) ?? 0
+      }))
+    );
   } catch (err) { next(err); }
 });
 
 priceRangesRouter.post("/", async (req, res, next) => {
   try {
     const body = schema.parse(req.body);
-    const range = await prisma.$transaction(async (tx) => {
-      const r = await tx.priceRange.create({ data: { name: body.name, minPrice: body.minPrice, maxPrice: body.maxPrice } });
-      await tx.product.updateMany({ where: { sellingPrice: { gte: body.minPrice, lte: body.maxPrice } }, data: { priceRangeId: r.id } });
+    const range = await db.transaction(async (tx) => {
+      const [r] = await tx.insert(priceRanges).values({
+        id: crypto.randomUUID(),
+        name: body.name,
+        minPrice: String(body.minPrice),
+        maxPrice: String(body.maxPrice),
+        updatedAt: new Date()
+      }).returning();
+      await tx.update(products)
+        .set({ priceRangeId: r.id })
+        .where(
+          and(
+            gte(products.sellingPrice, String(body.minPrice)),
+            lte(products.sellingPrice, String(body.maxPrice))
+          )
+        );
       return r;
     });
-    res.status(201).json({ ...range, minPrice: toNumber(range.minPrice), maxPrice: toNumber(range.maxPrice) });
+    res.status(201).json({ ...range, minPrice: Number(range.minPrice), maxPrice: Number(range.maxPrice) });
   } catch (err) { next(err); }
 });
 
 priceRangesRouter.put("/:id", async (req, res, next) => {
   try {
     const body = schema.parse(req.body);
-    const range = await prisma.$transaction(async (tx) => {
-      const r = await tx.priceRange.update({ where: { id: req.params.id }, data: { name: body.name, minPrice: body.minPrice, maxPrice: body.maxPrice } });
-      await tx.product.updateMany({ where: { sellingPrice: { gte: body.minPrice, lte: body.maxPrice } }, data: { priceRangeId: r.id } });
+    const range = await db.transaction(async (tx) => {
+      const [r] = await tx.update(priceRanges)
+        .set({
+          name: body.name,
+          minPrice: String(body.minPrice),
+          maxPrice: String(body.maxPrice),
+          updatedAt: new Date()
+        })
+        .where(eq(priceRanges.id, req.params.id))
+        .returning();
+      await tx.update(products)
+        .set({ priceRangeId: r.id })
+        .where(
+          and(
+            gte(products.sellingPrice, String(body.minPrice)),
+            lte(products.sellingPrice, String(body.maxPrice))
+          )
+        );
       return r;
     });
-    res.json({ ...range, minPrice: toNumber(range.minPrice), maxPrice: toNumber(range.maxPrice) });
+    res.json({ ...range, minPrice: Number(range.minPrice), maxPrice: Number(range.maxPrice) });
   } catch (err) { next(err); }
 });
 
 priceRangesRouter.delete("/:id", async (req, res, next) => {
   try {
-    await prisma.product.updateMany({ where: { priceRangeId: req.params.id }, data: { priceRangeId: null } });
-    await prisma.priceRange.delete({ where: { id: req.params.id } });
+    await db.update(products).set({ priceRangeId: null }).where(eq(products.priceRangeId, req.params.id));
+    await db.delete(priceRanges).where(eq(priceRanges.id, req.params.id));
     res.status(204).send();
   } catch (err) { next(err); }
 });

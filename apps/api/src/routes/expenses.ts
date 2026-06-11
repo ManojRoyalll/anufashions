@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
-import { normalizeData } from "../utils/serializers";
+import { db } from "../lib/db";
+import { expenses } from "../lib/schema";
+import { desc } from "drizzle-orm";
 
 export const expensesRouter = Router();
 
@@ -14,8 +15,8 @@ const schema = z.object({
 
 expensesRouter.get("/", async (_req, res, next) => {
   try {
-    const data = await prisma.expense.findMany({ orderBy: { date: "desc" } });
-    res.json(normalizeData(data));
+    const data = await db.select().from(expenses).orderBy(desc(expenses.date));
+    res.json(data.map((e) => ({ ...e, amount: Number(e.amount) })));
   } catch (error) {
     next(error);
   }
@@ -24,15 +25,15 @@ expensesRouter.get("/", async (_req, res, next) => {
 expensesRouter.post("/", async (req, res, next) => {
   try {
     const body = schema.parse(req.body);
-    const data = await prisma.expense.create({
-      data: {
-        date: new Date(body.date),
-        type: body.type,
-        amount: body.amount,
-        description: body.description
-      }
-    });
-    res.status(201).json(normalizeData(data));
+    const [expense] = await db.insert(expenses).values({
+      id: crypto.randomUUID(),
+      date: new Date(body.date),
+      type: body.type,
+      amount: String(body.amount),
+      description: body.description,
+      updatedAt: new Date()
+    }).returning();
+    res.status(201).json({ ...expense, amount: Number(expense.amount) });
   } catch (error) {
     next(error);
   }

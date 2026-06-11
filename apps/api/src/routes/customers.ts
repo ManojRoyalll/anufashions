@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
-import { normalizeData } from "../utils/serializers";
+import { db } from "../lib/db";
+import { customers } from "../lib/schema";
+import { eq, asc, like, or } from "drizzle-orm";
 
 export const customersRouter = Router();
 
@@ -12,10 +13,18 @@ const customerSchema = z.object({
   favoriteCategories: z.string().optional()
 });
 
-customersRouter.get("/", async (_req, res, next) => {
+customersRouter.get("/", async (req, res, next) => {
   try {
-    const customers = await prisma.customer.findMany({ orderBy: { name: "asc" } });
-    res.json(normalizeData(customers));
+    const q = req.query.q?.toString();
+    const result = q
+      ? await db.select().from(customers).where(
+          or(
+            like(customers.name, `%${q}%`),
+            like(customers.phone, `%${q}%`)
+          )
+        ).orderBy(asc(customers.name))
+      : await db.select().from(customers).orderBy(asc(customers.name));
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -24,8 +33,15 @@ customersRouter.get("/", async (_req, res, next) => {
 customersRouter.post("/", async (req, res, next) => {
   try {
     const body = customerSchema.parse(req.body);
-    const customer = await prisma.customer.create({ data: { name: body.name!, phone: body.phone, address: body.address, favoriteCategories: body.favoriteCategories } });
-    res.status(201).json(normalizeData(customer));
+    const [customer] = await db.insert(customers).values({
+      id: crypto.randomUUID(),
+      name: body.name,
+      phone: body.phone,
+      address: body.address,
+      favoriteCategories: body.favoriteCategories,
+      updatedAt: new Date()
+    }).returning();
+    res.status(201).json(customer);
   } catch (error) {
     next(error);
   }
@@ -34,8 +50,11 @@ customersRouter.post("/", async (req, res, next) => {
 customersRouter.put("/:id", async (req, res, next) => {
   try {
     const body = customerSchema.partial().parse(req.body);
-    const customer = await prisma.customer.update({ where: { id: req.params.id }, data: body });
-    res.json(normalizeData(customer));
+    const [customer] = await db.update(customers)
+      .set({ ...body, updatedAt: new Date() })
+      .where(eq(customers.id, req.params.id))
+      .returning();
+    res.json(customer);
   } catch (error) {
     next(error);
   }
@@ -43,7 +62,7 @@ customersRouter.put("/:id", async (req, res, next) => {
 
 customersRouter.delete("/:id", async (req, res, next) => {
   try {
-    await prisma.customer.delete({ where: { id: req.params.id } });
+    await db.delete(customers).where(eq(customers.id, req.params.id));
     res.status(204).send();
   } catch (error) {
     next(error);

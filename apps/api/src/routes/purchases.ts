@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
-import { normalizeData } from "../utils/serializers";
+import { db } from "../lib/db";
+import { purchases, purchaseItems, products, suppliers, businessMetrics } from "../lib/schema";
+import { eq, desc, sql } from "drizzle-orm";
 
 export const purchasesRouter = Router();
 
@@ -22,15 +23,34 @@ const purchaseSchema = z.object({
 
 purchasesRouter.get("/", async (_req, res, next) => {
   try {
-    const purchases = await prisma.purchase.findMany({
-      include: {
-        supplier: true,
-        items: { include: { product: true } }
-      },
-      orderBy: { purchaseDate: "desc" }
-    });
+    const allPurchases = await db.select().from(purchases).orderBy(desc(purchases.purchaseDate));
+    const allItems = await db.select({ item: purchaseItems, product: products }).from(purchaseItems)
+      .leftJoin(products, eq(purchaseItems.productId, products.id));
+    const allSuppliers = await db.select().from(suppliers);
 
-    res.json(normalizeData(purchases));
+    const supplierMap = new Map(allSuppliers.map((s) => [s.id, s]));
+    const itemsByPurchase = new Map<string, typeof allItems>();
+    for (const row of allItems) {
+      const pid = row.item.purchaseId;
+      if (!itemsByPurchase.has(pid)) itemsByPurchase.set(pid, []);
+      itemsByPurchase.get(pid)!.push(row);
+    }
+
+    const result = allPurchases.map((p) => ({
+      ...p,
+      totalAmount: Number(p.totalAmount),
+      invoiceBillAmount: p.invoiceBillAmount !== null ? Number(p.invoiceBillAmount) : null,
+      transportCost: Number(p.transportCost),
+      supplier: supplierMap.get(p.supplierId) ?? null,
+      items: (itemsByPurchase.get(p.id) ?? []).map(({ item, product }) => ({
+        ...item,
+        costPrice: Number(item.costPrice),
+        lineTotal: Number(item.lineTotal),
+        product
+      }))
+    }));
+
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -39,72 +59,96 @@ purchasesRouter.get("/", async (_req, res, next) => {
 purchasesRouter.post("/", async (req, res, next) => {
   try {
     const body = purchaseSchema.parse(req.body);
-    // Items cost from individual item prices
     const itemsCost = body.items.reduce((acc, i) => acc + i.quantity * i.costPrice, 0);
-    // Transport cost to be distributed
     const transportCost = body.transportCost ?? 0;
-    // Invoice bill amount (what was actually paid on the invoice — may include GST)
     const invoiceBillAmount = body.invoiceBillAmount ?? null;
-    // True total investment = invoice bill + transport (if invoice provided), else items cost + transport
     const actualInvestment = (invoiceBillAmount ?? itemsCost) + transportCost;
-    // totalAmount stored = actual investment (true cost to business)
     const totalAmount = actualInvestment;
 
-    const purchase = await prisma.$transaction(async (tx) => {
-      const created = await tx.purchase.create({
-        data: {
-          purchaseDate: new Date(body.purchaseDate),
-          supplierId: body.supplierId,
-          invoiceNo: body.invoiceNo,
-          totalAmount,
-          invoiceBillAmount: invoiceBillAmount ?? null,
-          transportCost,
-          items: {
-            create: body.items.map((item) => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              costPrice: item.costPrice,
-              lineTotal: item.quantity * item.costPrice
-            }))
-          }
-        },
-        include: {
-          supplier: true,
-          items: { include: { product: true } }
-        }
-      });
+    const purchase = await db.transaction(async (tx) => {
+      const purchaseId = crypto.randomUUID();
+      const [created] = await tx.insert(purchases).values({
+        id: purchaseId,
+        purchaseDate: new Date(body.purchaseDate),
+        supplierId: body.supplierId,
+        invoiceNo: body.invoiceNo,
+        totalAmount: String(totalAmount),
+        invoiceBillAmount: invoiceBillAmount !== null ? String(invoiceBillAmount) : null,
+        transportCost: String(transportCost),
+        updatedAt: new Date()
+      }).returning();
 
       for (const item of body.items) {
-        const product = await tx.product.findUnique({ where: { id: item.productId } });
-        if (!product) throw new Error("Product not found");
-
-        const newQty = product.quantity + item.quantity;
-        await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            quantity: newQty,
-            purchasePrice: item.costPrice,
-            stockStatus: newQty <= 0 ? "OUT_OF_STOCK" : newQty <= 5 ? "LOW_STOCK" : "IN_STOCK"
-          }
+        await tx.insert(purchaseItems).values({
+          id: crypto.randomUUID(),
+          purchaseId,
+          productId: item.productId,
+          quantity: item.quantity,
+          costPrice: String(item.costPrice),
+          lineTotal: String(item.quantity * item.costPrice)
         });
       }
 
-      // Update total investment with ACTUAL money spent (invoice + transport)
-      await tx.businessMetric.upsert({
-        where: { id: "singleton" },
-        update: { totalInvestment: { increment: totalAmount } },
-        create: {
+      for (const item of body.items) {
+        const productRows = await tx.select().from(products).where(eq(products.id, item.productId));
+        const product = productRows[0];
+        if (!product) throw new Error("Product not found");
+
+        const newQty = product.quantity + item.quantity;
+        const status = newQty <= 0 ? "OUT_OF_STOCK" : newQty <= 5 ? "LOW_STOCK" : "IN_STOCK";
+        await tx.update(products)
+          .set({
+            quantity: newQty,
+            purchasePrice: String(item.costPrice),
+            stockStatus: status,
+            updatedAt: new Date()
+          })
+          .where(eq(products.id, item.productId));
+      }
+
+      // Upsert businessMetric singleton
+      const existing = await tx.select().from(businessMetrics).where(eq(businessMetrics.id, "singleton"));
+      if (existing.length > 0) {
+        await tx.update(businessMetrics)
+          .set({
+            totalInvestment: sql`${businessMetrics.totalInvestment} + ${String(totalAmount)}`,
+            updatedAt: new Date()
+          })
+          .where(eq(businessMetrics.id, "singleton"));
+      } else {
+        await tx.insert(businessMetrics).values({
           id: "singleton",
-          totalInvestment: totalAmount,
-          totalProfit: 0,
-          totalRevenue: 0
-        }
-      });
+          totalInvestment: String(totalAmount),
+          totalProfit: "0",
+          totalRevenue: "0",
+          updatedAt: new Date()
+        });
+      }
 
       return created;
     });
 
-    res.status(201).json(normalizeData(purchase));
+    // Fetch full result with supplier and items
+    const supplierRows = await db.select().from(suppliers).where(eq(suppliers.id, purchase.supplierId));
+    const itemRows = await db
+      .select({ item: purchaseItems, product: products })
+      .from(purchaseItems)
+      .leftJoin(products, eq(purchaseItems.productId, products.id))
+      .where(eq(purchaseItems.purchaseId, purchase.id));
+
+    res.status(201).json({
+      ...purchase,
+      totalAmount: Number(purchase.totalAmount),
+      invoiceBillAmount: purchase.invoiceBillAmount !== null ? Number(purchase.invoiceBillAmount) : null,
+      transportCost: Number(purchase.transportCost),
+      supplier: supplierRows[0] ?? null,
+      items: itemRows.map(({ item, product }) => ({
+        ...item,
+        costPrice: Number(item.costPrice),
+        lineTotal: Number(item.lineTotal),
+        product
+      }))
+    });
   } catch (error) {
     next(error);
   }
@@ -112,8 +156,8 @@ purchasesRouter.post("/", async (req, res, next) => {
 
 purchasesRouter.delete("/:id", async (req, res, next) => {
   try {
-    await prisma.purchaseItem.deleteMany({ where: { purchaseId: req.params.id } });
-    await prisma.purchase.delete({ where: { id: req.params.id } });
+    await db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, req.params.id));
+    await db.delete(purchases).where(eq(purchases.id, req.params.id));
     res.status(204).send();
   } catch (error) {
     next(error);

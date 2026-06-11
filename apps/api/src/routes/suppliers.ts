@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
-import { normalizeData } from "../utils/serializers";
+import { db } from "../lib/db";
+import { suppliers } from "../lib/schema";
+import { eq, asc } from "drizzle-orm";
 
 export const suppliersRouter = Router();
 
@@ -16,8 +17,8 @@ const supplierSchema = z.object({
 
 suppliersRouter.get("/", async (_req, res, next) => {
   try {
-    const suppliers = await prisma.supplier.findMany({ orderBy: { name: "asc" } });
-    res.json(normalizeData(suppliers));
+    const result = await db.select().from(suppliers).orderBy(asc(suppliers.name));
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -26,17 +27,17 @@ suppliersRouter.get("/", async (_req, res, next) => {
 suppliersRouter.post("/", async (req, res, next) => {
   try {
     const body = supplierSchema.parse(req.body);
-    const supplier = await prisma.supplier.create({
-      data: {
-        name: body.name!,
-        phone: body.phone,
-        address: body.address,
-        email: body.email || null,
-        productsSupplied: body.productsSupplied,
-        outstandingPayments: body.outstandingPayments ?? 0
-      }
-    });
-    res.status(201).json(normalizeData(supplier));
+    const [supplier] = await db.insert(suppliers).values({
+      id: crypto.randomUUID(),
+      name: body.name,
+      phone: body.phone,
+      address: body.address,
+      email: body.email || null,
+      productsSupplied: body.productsSupplied,
+      outstandingPayments: String(body.outstandingPayments ?? 0),
+      updatedAt: new Date()
+    }).returning();
+    res.status(201).json(supplier);
   } catch (error) {
     next(error);
   }
@@ -45,14 +46,16 @@ suppliersRouter.post("/", async (req, res, next) => {
 suppliersRouter.put("/:id", async (req, res, next) => {
   try {
     const body = supplierSchema.partial().parse(req.body);
-    const supplier = await prisma.supplier.update({
-      where: { id: req.params.id },
-      data: {
-        ...body,
-        email: body.email === "" ? null : body.email
-      }
-    });
-    res.json(normalizeData(supplier));
+    const updateData: Record<string, unknown> = { ...body, updatedAt: new Date() };
+    if (body.email === "") updateData.email = null;
+    if (body.outstandingPayments !== undefined) {
+      updateData.outstandingPayments = String(body.outstandingPayments);
+    }
+    const [supplier] = await db.update(suppliers)
+      .set(updateData)
+      .where(eq(suppliers.id, req.params.id))
+      .returning();
+    res.json(supplier);
   } catch (error) {
     next(error);
   }
@@ -60,7 +63,7 @@ suppliersRouter.put("/:id", async (req, res, next) => {
 
 suppliersRouter.delete("/:id", async (req, res, next) => {
   try {
-    await prisma.supplier.delete({ where: { id: req.params.id } });
+    await db.delete(suppliers).where(eq(suppliers.id, req.params.id));
     res.status(204).send();
   } catch (error) {
     next(error);

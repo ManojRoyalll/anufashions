@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { prisma } from "../lib/prisma";
-import { toNumber } from "../utils/serializers";
+import { db } from "../lib/db";
+import { sales, saleItems, products, expenses, categories } from "../lib/schema";
+import { eq, gte, asc } from "drizzle-orm";
 
 export const analyticsRouter = Router();
 
@@ -14,20 +15,26 @@ function monthKey(d: Date) {
 
 analyticsRouter.get("/overview", async (_req, res, next) => {
   try {
-    const [sales, expenses, products, categories] = await Promise.all([
-      prisma.sale.findMany({
-        include: {
-          items: {
-            include: {
-              product: { include: { category: true } }
-            }
-          }
-        }
-      }),
-      prisma.expense.findMany(),
-      prisma.product.findMany(),
-      prisma.category.findMany()
+    const [allSales, allExpenses, allProducts, allCategories] = await Promise.all([
+      db.select().from(sales),
+      db.select().from(expenses),
+      db.select().from(products),
+      db.select().from(categories)
     ]);
+
+    // Fetch all sale items with product + category
+    const itemRows = await db
+      .select({ item: saleItems, product: products, category: categories })
+      .from(saleItems)
+      .leftJoin(products, eq(saleItems.productId, products.id))
+      .leftJoin(categories, eq(products.categoryId, categories.id));
+
+    const itemsBySale = new Map<string, typeof itemRows>();
+    for (const row of itemRows) {
+      const sid = row.item.saleId;
+      if (!itemsBySale.has(sid)) itemsBySale.set(sid, []);
+      itemsBySale.get(sid)!.push(row);
+    }
 
     const dailySalesMap = new Map<string, number>();
     const monthlyRevenueMap = new Map<string, number>();
@@ -35,29 +42,31 @@ analyticsRouter.get("/overview", async (_req, res, next) => {
     const categoryProfitMap = new Map<string, number>();
     const topProductsMap = new Map<string, number>();
 
-    for (const sale of sales) {
+    for (const sale of allSales) {
       const d = new Date(sale.saleDate);
-      dailySalesMap.set(dateKey(d), (dailySalesMap.get(dateKey(d)) || 0) + toNumber(sale.totalAmount));
-      monthlyRevenueMap.set(monthKey(d), (monthlyRevenueMap.get(monthKey(d)) || 0) + toNumber(sale.revenue));
+      dailySalesMap.set(dateKey(d), (dailySalesMap.get(dateKey(d)) || 0) + Number(sale.totalAmount));
+      monthlyRevenueMap.set(monthKey(d), (monthlyRevenueMap.get(monthKey(d)) || 0) + Number(sale.revenue));
 
-      for (const item of sale.items) {
-        const cat = item.product.category.name;
-        categorySalesMap.set(cat, (categorySalesMap.get(cat) || 0) + toNumber(item.lineTotal));
+      const items = itemsBySale.get(sale.id) ?? [];
+      for (const { item, product, category } of items) {
+        const cat = category?.name ?? "Unknown";
+        categorySalesMap.set(cat, (categorySalesMap.get(cat) || 0) + Number(item.lineTotal));
 
-        const profit = toNumber(item.lineTotal) - toNumber(item.purchasePrice) * item.quantity;
+        const profit = Number(item.lineTotal) - Number(item.purchasePrice) * item.quantity;
         categoryProfitMap.set(cat, (categoryProfitMap.get(cat) || 0) + profit);
 
-        topProductsMap.set(item.product.name, (topProductsMap.get(item.product.name) || 0) + item.quantity);
+        const productName = product?.name ?? "Unknown";
+        topProductsMap.set(productName, (topProductsMap.get(productName) || 0) + item.quantity);
       }
     }
 
     const expenseBreakdownMap = new Map<string, number>();
-    for (const e of expenses) {
-      expenseBreakdownMap.set(e.type, (expenseBreakdownMap.get(e.type) || 0) + toNumber(e.amount));
+    for (const e of allExpenses) {
+      expenseBreakdownMap.set(e.type, (expenseBreakdownMap.get(e.type) || 0) + Number(e.amount));
     }
 
-    const inventoryDistribution = categories.map((c) => {
-      const qty = products.filter((p) => p.categoryId === c.id).reduce((sum, p) => sum + p.quantity, 0);
+    const inventoryDistribution = allCategories.map((c) => {
+      const qty = allProducts.filter((p) => p.categoryId === c.id).reduce((sum, p) => sum + p.quantity, 0);
       return { name: c.name, value: qty };
     });
 
@@ -73,10 +82,10 @@ analyticsRouter.get("/overview", async (_req, res, next) => {
         .slice(0, 10),
       expenseBreakdown: [...expenseBreakdownMap.entries()].map(([name, value]) => ({ name, value })),
       notifications: {
-        lowStock: products
+        lowStock: allProducts
           .filter((p) => p.stockStatus === "LOW_STOCK")
           .map((p) => ({ id: p.id, name: p.name, quantity: p.quantity })),
-        outOfStock: products
+        outOfStock: allProducts
           .filter((p) => p.stockStatus === "OUT_OF_STOCK")
           .map((p) => ({ id: p.id, name: p.name, quantity: p.quantity }))
       }
@@ -98,19 +107,35 @@ analyticsRouter.get("/sales", async (req, res, next) => {
       fromDate = new Date(now.getFullYear(), 0, 1);
     }
 
-    const sales = await prisma.sale.findMany({
-      where: fromDate ? { saleDate: { gte: fromDate } } : undefined,
-      include: {
-        items: {
-          include: {
-            product: {
-              include: { category: true, supplier: true, priceRange: true }
-            }
-          }
-        }
-      },
-      orderBy: { saleDate: "asc" }
-    });
+    const allSales = fromDate
+      ? await db.select().from(sales).where(gte(sales.saleDate, fromDate)).orderBy(asc(sales.saleDate))
+      : await db.select().from(sales).orderBy(asc(sales.saleDate));
+
+    // Fetch items with product, category, supplier, priceRange
+    const { suppliers, priceRanges } = await import("../lib/schema");
+    const itemRows = await db
+      .select({
+        item: saleItems,
+        product: products,
+        category: categories,
+        supplier: suppliers,
+        priceRange: priceRanges
+      })
+      .from(saleItems)
+      .leftJoin(products, eq(saleItems.productId, products.id))
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .leftJoin(priceRanges, eq(products.priceRangeId, priceRanges.id));
+
+    const saleIds = new Set(allSales.map((s) => s.id));
+    const filteredItemRows = itemRows.filter((r) => saleIds.has(r.item.saleId));
+
+    const itemsBySale = new Map<string, typeof filteredItemRows>();
+    for (const row of filteredItemRows) {
+      const sid = row.item.saleId;
+      if (!itemsBySale.has(sid)) itemsBySale.set(sid, []);
+      itemsBySale.get(sid)!.push(row);
+    }
 
     const categoryMap = new Map<string, { revenue: number; quantity: number; profit: number }>();
     const supplierMap = new Map<string, { revenue: number; quantity: number; profit: number }>();
@@ -118,31 +143,32 @@ analyticsRouter.get("/sales", async (req, res, next) => {
     const priceRangeMap = new Map<string, { revenue: number; quantity: number; profit: number }>();
     const monthlyMap = new Map<string, { revenue: number; count: number }>();
 
-    for (const sale of sales) {
+    for (const sale of allSales) {
       const mk = monthKey(new Date(sale.saleDate));
       const existing = monthlyMap.get(mk) || { revenue: 0, count: 0 };
-      monthlyMap.set(mk, { revenue: existing.revenue + toNumber(sale.totalAmount), count: existing.count + 1 });
+      monthlyMap.set(mk, { revenue: existing.revenue + Number(sale.totalAmount), count: existing.count + 1 });
 
-      for (const item of sale.items) {
-        const revenue = toNumber(item.lineTotal);
-        const profit = revenue - toNumber(item.purchasePrice) * item.quantity;
+      const items = itemsBySale.get(sale.id) ?? [];
+      for (const { item, product, category, supplier: sup, priceRange } of items) {
+        const revenue = Number(item.lineTotal);
+        const profit = revenue - Number(item.purchasePrice) * item.quantity;
         const qty = item.quantity;
 
-        const catName = item.product.category.name;
+        const catName = category?.name ?? "Unknown";
         const cat = categoryMap.get(catName) || { revenue: 0, quantity: 0, profit: 0 };
         categoryMap.set(catName, { revenue: cat.revenue + revenue, quantity: cat.quantity + qty, profit: cat.profit + profit });
 
-        const supName = item.product.supplier?.name;
+        const supName = sup?.name;
         if (supName) {
-          const sup = supplierMap.get(supName) || { revenue: 0, quantity: 0, profit: 0 };
-          supplierMap.set(supName, { revenue: sup.revenue + revenue, quantity: sup.quantity + qty, profit: sup.profit + profit });
+          const s = supplierMap.get(supName) || { revenue: 0, quantity: 0, profit: 0 };
+          supplierMap.set(supName, { revenue: s.revenue + revenue, quantity: s.quantity + qty, profit: s.profit + profit });
         }
 
-        const itemName = item.product.name;
+        const itemName = product?.name ?? "Unknown";
         const itm = itemMap.get(itemName) || { revenue: 0, quantity: 0, profit: 0 };
         itemMap.set(itemName, { revenue: itm.revenue + revenue, quantity: itm.quantity + qty, profit: itm.profit + profit });
 
-        const rangeName = item.product.priceRange?.name || "Unclassified";
+        const rangeName = priceRange?.name || "Unclassified";
         const rng = priceRangeMap.get(rangeName) || { revenue: 0, quantity: 0, profit: 0 };
         priceRangeMap.set(rangeName, { revenue: rng.revenue + revenue, quantity: rng.quantity + qty, profit: rng.profit + profit });
       }

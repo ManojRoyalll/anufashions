@@ -1,19 +1,20 @@
 import { Router } from "express";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
-import { prisma } from "../lib/prisma";
-import { toNumber } from "../utils/serializers";
+import { db } from "../lib/db";
+import { sales, products, expenses, categories, suppliers } from "../lib/schema";
+import { eq } from "drizzle-orm";
 
 export const reportsRouter = Router();
 
 reportsRouter.get("/sales.csv", async (_req, res, next) => {
   try {
-    const sales = await prisma.sale.findMany();
+    const allSales = await db.select().from(sales);
     const header = "saleDate,totalAmount,revenue,cogs,grossProfit,netProfit,marginPercent\n";
-    const rows = sales
+    const rows = allSales
       .map(
         (s) =>
-          `${new Date(s.saleDate).toISOString()},${toNumber(s.totalAmount)},${toNumber(s.revenue)},${toNumber(s.cogs)},${toNumber(s.grossProfit)},${toNumber(s.netProfit)},${toNumber(s.marginPercent)}`
+          `${new Date(s.saleDate).toISOString()},${Number(s.totalAmount)},${Number(s.revenue)},${Number(s.cogs)},${Number(s.grossProfit)},${Number(s.netProfit)},${Number(s.marginPercent)}`
       )
       .join("\n");
 
@@ -27,12 +28,11 @@ reportsRouter.get("/sales.csv", async (_req, res, next) => {
 
 reportsRouter.get("/inventory.xlsx", async (_req, res, next) => {
   try {
-    const products = await prisma.product.findMany({
-      include: {
-        category: true,
-        supplier: true
-      }
-    });
+    const rows = await db
+      .select({ product: products, category: categories, supplier: suppliers })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id));
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Inventory");
@@ -47,14 +47,14 @@ reportsRouter.get("/inventory.xlsx", async (_req, res, next) => {
       { header: "Stock Status", key: "stockStatus", width: 16 }
     ];
 
-    products.forEach((p) => {
+    rows.forEach(({ product: p, category, supplier }) => {
       sheet.addRow({
         code: p.code,
         name: p.name,
-        category: p.category.name,
-        supplier: p.supplier?.name || "-",
-        purchasePrice: toNumber(p.purchasePrice),
-        sellingPrice: toNumber(p.sellingPrice),
+        category: category?.name ?? "-",
+        supplier: supplier?.name ?? "-",
+        purchasePrice: Number(p.purchasePrice),
+        sellingPrice: Number(p.sellingPrice),
         quantity: p.quantity,
         stockStatus: p.stockStatus
       });
@@ -74,11 +74,14 @@ reportsRouter.get("/inventory.xlsx", async (_req, res, next) => {
 
 reportsRouter.get("/summary.pdf", async (_req, res, next) => {
   try {
-    const [sales, expenses] = await Promise.all([prisma.sale.findMany(), prisma.expense.findMany()]);
+    const [allSales, allExpenses] = await Promise.all([
+      db.select().from(sales),
+      db.select().from(expenses)
+    ]);
 
-    const totalRevenue = sales.reduce((sum, s) => sum + toNumber(s.revenue), 0);
-    const totalProfit = sales.reduce((sum, s) => sum + toNumber(s.netProfit), 0);
-    const totalExpenses = expenses.reduce((sum, e) => sum + toNumber(e.amount), 0);
+    const totalRevenue = allSales.reduce((sum, s) => sum + Number(s.revenue), 0);
+    const totalProfit = allSales.reduce((sum, s) => sum + Number(s.netProfit), 0);
+    const totalExpenses = allExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", "attachment; filename=business-summary.pdf");
