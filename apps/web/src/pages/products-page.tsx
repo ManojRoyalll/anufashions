@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { Textarea } from "@/components/ui/textarea";
+import { LabelPrinter } from "@/components/ui/label-printer";
 
 const schema = z.object({
   supplierId: z.string().optional(),
@@ -175,7 +176,12 @@ export default function ProductsPage() {
       <PageHeader
         title={t.myStock}
         subtitle={`${products.length} ${t.items}`}
-        actions={<Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />{t.addItem}</Button>}
+        actions={
+          <div className="flex gap-2">
+            <LabelPrinter products={products} />
+            <Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />{t.addItem}</Button>
+          </div>
+        }
       />
 
       <div className="flex flex-wrap gap-3 text-sm">

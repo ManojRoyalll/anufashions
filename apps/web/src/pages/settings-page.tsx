@@ -4,8 +4,10 @@ import { useLang } from "@/hooks/use-lang";
 import CategoriesPage from "@/pages/categories-page";
 import PriceRangesPage from "@/pages/price-ranges-page";
 import CustomersPage from "@/pages/customers-page";
+import SuppliersPage from "@/pages/suppliers-page";
+import InvoicesPage from "@/pages/invoices-page";
 
-type Tab = "categories" | "prices" | "customers";
+type Tab = "categories" | "prices" | "suppliers" | "invoices" | "customers";
 
 export default function SettingsPage() {
   const { t } = useLang();
@@ -14,6 +16,8 @@ export default function SettingsPage() {
   const tabs: { key: Tab; label: string; sub: string }[] = [
     { key: "categories", label: "Categories", sub: "రకాలు" },
     { key: "prices", label: "Price Groups", sub: "ధర గుంపులు" },
+    { key: "suppliers", label: t.suppliers, sub: "సరఫరాదారులు" },
+    { key: "invoices", label: "Bills & Invoices", sub: "బిల్లులు" },
     { key: "customers", label: t.customers, sub: "కస్టమర్లు" },
   ];
 
@@ -21,7 +25,7 @@ export default function SettingsPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-brand-900">Settings / సెట్టింగులు</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Manage categories, price groups and customers</p>
+        <p className="text-sm text-slate-500 mt-0.5">Manage categories, price groups, suppliers, invoices and customers</p>
       </div>
 
       <div className="flex gap-2 flex-wrap">
@@ -46,6 +50,8 @@ export default function SettingsPage() {
 
       {tab === "categories" && <CategoriesPage />}
       {tab === "prices" && <PriceRangesPage />}
+      {tab === "suppliers" && <SuppliersPage />}
+      {tab === "invoices" && <InvoicesPage />}
       {tab === "customers" && <CustomersPage />}
     </div>
   );
