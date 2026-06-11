@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Check, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/store/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { inr } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -47,6 +48,7 @@ export default function BuyPage() {
 
   // Purchase history
   const [history, setHistory] = useState<any[]>([]);
+  const [detailRecord, setDetailRecord] = useState<any | null>(null);
 
   useEffect(() => {
     api.get("/suppliers").then((r) => setSuppliers(r.data));
@@ -127,7 +129,7 @@ export default function BuyPage() {
           }
         }
 
-        // Create product
+        // Create product with quantity 0 — the purchase record below will increment it
         try {
           const productRes = await api.post("/products", {
             code: item.itemCode.trim() || `ANU-${Date.now()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
@@ -137,7 +139,7 @@ export default function BuyPage() {
             purchasePrice: Number(item.buyPrice),
             sellingPrice: Number(item.sellPrice),
             discountLimit: item.maxDiscount ? Number(item.maxDiscount) : undefined,
-            quantity: Number(item.quantity),
+            quantity: 0,
           });
           purchaseItems.push({
             productId: productRes.data.id,
@@ -156,6 +158,7 @@ export default function BuyPage() {
           invoiceNo: invoiceNo.trim() || `INV-${Date.now()}`,
           invoiceBillAmount: invoiceBillAmount ? Number(invoiceBillAmount) : undefined,
           transportCost: transportCost ? Number(transportCost) : 0,
+          billPhoto: billPhoto || undefined,
           items: purchaseItems
         });
       }
@@ -426,7 +429,7 @@ export default function BuyPage() {
           ) : (
             <div className="space-y-2">
               {history.map((h) => (
-                <div key={h.id} className="flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
+                <div key={h.id} className="flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3 cursor-pointer hover:bg-brand-100/60 transition" onClick={() => setDetailRecord(h)}>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-brand-900 text-sm">{h.supplier?.name ?? "-"}</p>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -437,7 +440,10 @@ export default function BuyPage() {
                   </div>
                   <div className="flex items-center gap-2 ml-3 shrink-0">
                     <p className="font-bold text-brand-800">{inr(Number(h.totalAmount))}</p>
-                    <button onClick={() => deleteEntry(h.id)} className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg">
+                    <button onClick={(e) => { e.stopPropagation(); setDetailRecord(h); }} className="p-1.5 text-brand-400 hover:text-brand-600 hover:bg-brand-100 rounded-lg">
+                      <Eye className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteEntry(h.id); }} className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -447,6 +453,65 @@ export default function BuyPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── PURCHASE DETAIL MODAL ── */}
+      <Modal open={!!detailRecord} onClose={() => setDetailRecord(null)} title={`Purchase — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`} size="md">
+        {detailRecord && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-brand-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Supplier</p>
+                <p className="font-semibold text-brand-900">{detailRecord.supplier?.name ?? "—"}</p>
+                {detailRecord.supplier?.phone && <p className="text-xs text-slate-500">{detailRecord.supplier.phone}</p>}
+              </div>
+              <div className="bg-brand-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Date</p>
+                <p className="font-semibold text-brand-900">{new Date(detailRecord.purchaseDate).toLocaleDateString("en-IN", { dateStyle: "long" })}</p>
+              </div>
+              <div className="bg-brand-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Invoice No</p>
+                <p className="font-semibold text-brand-900">{detailRecord.invoiceNo || "—"}</p>
+              </div>
+              <div className="bg-terra-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Total Amount</p>
+                <p className="font-bold text-xl text-terra-700">{inr(Number(detailRecord.totalAmount))}</p>
+              </div>
+            </div>
+
+            {detailRecord.items?.length > 0 && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items ({detailRecord.items.length})</p>
+                <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                  {detailRecord.items.map((item: any, i: number) => (
+                    <div key={item.id ?? i} className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-brand-900 truncate">{item.product?.name ?? "—"}</p>
+                        <p className="text-xs text-slate-500">{item.product?.code}</p>
+                      </div>
+                      <div className="text-right shrink-0 ml-3">
+                        <p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.costPrice))}</p>
+                        <p className="text-xs text-brand-700 font-bold">{inr(Number(item.lineTotal ?? Number(item.costPrice) * item.quantity))}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {detailRecord.billPhoto && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Bill Photo / బిల్లు ఫోటో</p>
+                <a href={detailRecord.billPhoto} target="_blank" rel="noopener noreferrer">
+                  <img src={detailRecord.billPhoto} alt="Bill" className="w-full max-h-72 object-contain rounded-xl border border-brand-200 cursor-pointer hover:opacity-90" />
+                </a>
+                <p className="text-xs text-slate-400 mt-1 text-center">Tap to open full size</p>
+              </div>
+            )}
+
+            <Button variant="secondary" className="w-full" onClick={() => setDetailRecord(null)}>Close</Button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

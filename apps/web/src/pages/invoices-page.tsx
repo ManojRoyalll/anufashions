@@ -16,6 +16,7 @@ type Product = { id: string; name: string; purchasePrice: number };
 type InvoiceItem = { id: string; productId: string; quantity: number; costPrice: number };
 type PurchaseRecord = {
   id: string; purchaseDate: string; invoiceNo: string; totalAmount: number;
+  billPhoto?: string;
   supplier?: { name: string; phone?: string };
   items: { id: string; quantity: number; costPrice: number; lineTotal: number; product?: { name: string; code: string } }[];
 };
@@ -76,6 +77,7 @@ export default function InvoicesPage() {
         purchaseDate: new Date(date).toISOString(),
         supplierId,
         invoiceNo: invoiceNo || `INV-${Date.now()}`,
+        billPhoto: billPhoto || undefined,
         items: validItems.map(({ productId, quantity, costPrice }) => ({ productId, quantity, costPrice }))
       });
       show(t.recordPurchase + " ✓");
@@ -157,7 +159,6 @@ export default function InvoicesPage() {
 
           <FormField label={t.billPhoto}>
             <ImageUpload value={billPhoto} onChange={setBillPhoto} />
-            <p className="text-xs text-slate-400 mt-1">Photo is shown as preview only (not saved to server)</p>
           </FormField>
 
           <div>
@@ -288,7 +289,7 @@ export default function InvoicesPage() {
 
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items Purchased ({detailRecord.items.length})</p>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                 {detailRecord.items.map((item, i) => (
                   <div key={item.id ?? i} className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5">
                     <div className="flex-1 min-w-0">
@@ -303,6 +304,16 @@ export default function InvoicesPage() {
                 ))}
               </div>
             </div>
+
+            {detailRecord.billPhoto && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Bill Photo / బిల్లు ఫోటో</p>
+                <a href={detailRecord.billPhoto} target="_blank" rel="noopener noreferrer">
+                  <img src={detailRecord.billPhoto} alt="Bill" className="w-full max-h-72 object-contain rounded-xl border border-brand-200 cursor-pointer hover:opacity-90" />
+                </a>
+                <p className="text-xs text-slate-400 mt-1 text-center">Tap to open full size</p>
+              </div>
+            )}
 
             <Button variant="secondary" className="w-full" onClick={() => setDetailRecord(null)}>Close</Button>
           </div>

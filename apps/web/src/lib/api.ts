@@ -225,11 +225,11 @@ const api = {
 
     // ── PURCHASES ──
     if (path === '/purchases') {
-      const { purchaseDate, supplierId, invoiceNo, invoiceBillAmount, transportCost, items } = data
+      const { purchaseDate, supplierId, invoiceNo, invoiceBillAmount, transportCost, items, billPhoto } = data
       const purchaseId = crypto.randomUUID()
       const itemsCost = items.reduce((s: number, i: any) => s + i.quantity * i.costPrice, 0)
       const totalAmount = (invoiceBillAmount ?? itemsCost) + (transportCost || 0)
-      const { error: pe } = await supabase.from('Purchase').insert({ id: purchaseId, purchaseDate, supplierId, invoiceNo: invoiceNo || `INV-${Date.now()}`, totalAmount: String(totalAmount), invoiceBillAmount: invoiceBillAmount ? String(invoiceBillAmount) : null, transportCost: String(transportCost || 0), createdAt: now, updatedAt: now })
+      const { error: pe } = await supabase.from('Purchase').insert({ id: purchaseId, purchaseDate, supplierId, invoiceNo: invoiceNo || `INV-${Date.now()}`, totalAmount: String(totalAmount), invoiceBillAmount: invoiceBillAmount ? String(invoiceBillAmount) : null, transportCost: String(transportCost || 0), billPhoto: billPhoto || null, createdAt: now, updatedAt: now })
       if (pe) throw new Error(pe.message)
       for (const item of items) {
         await supabase.from('PurchaseItem').insert({ id: crypto.randomUUID(), purchaseId, productId: item.productId, quantity: item.quantity, costPrice: String(item.costPrice), lineTotal: String(item.quantity * item.costPrice), createdAt: now })

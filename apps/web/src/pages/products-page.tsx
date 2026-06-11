@@ -92,33 +92,41 @@ export default function ProductsPage() {
     return true;
   }), [products, filterCategory, filterStatus]);
 
+  // Reset form values after modal opens so fields are mounted when reset fires
+  useEffect(() => {
+    if (!modalOpen) return;
+    if (editing) {
+      reset({
+        supplierId: editing.supplierId ?? "",
+        name: editing.name,
+        categoryId: editing.categoryId,
+        purchasePrice: editing.purchasePrice,
+        sellingPrice: editing.sellingPrice,
+        discountLimit: editing.discountLimit ?? 30,
+        quantity: editing.quantity,
+        imageUrl: editing.imageUrl ?? "",
+        notes: editing.notes ?? "",
+        code: editing.code,
+        mrp: editing.mrp,
+        color: editing.color ?? "",
+        size: editing.size ?? "",
+        material: editing.material ?? "",
+        priceRangeId: editing.priceRangeId ?? "",
+      });
+    } else {
+      reset({ supplierId: "", name: "", categoryId: "", purchasePrice: 0, sellingPrice: 0, quantity: 0, discountLimit: 30 });
+    }
+  }, [modalOpen, editing]);
+
   const openAdd = () => {
     setEditing(null);
     setShowMore(false);
-    reset({ supplierId: "", name: "", categoryId: "", purchasePrice: 0, sellingPrice: 0, quantity: 0, discountLimit: 30 });
     setModalOpen(true);
   };
 
   const openEdit = (p: Product) => {
     setEditing(p);
     setShowMore(false);
-    reset({
-      supplierId: p.supplierId ?? "",
-      name: p.name,
-      categoryId: p.categoryId,
-      purchasePrice: p.purchasePrice,
-      sellingPrice: p.sellingPrice,
-      discountLimit: p.discountLimit ?? 30,
-      quantity: p.quantity,
-      imageUrl: p.imageUrl ?? "",
-      notes: p.notes ?? "",
-      code: p.code,
-      mrp: p.mrp,
-      color: p.color ?? "",
-      size: p.size ?? "",
-      material: p.material ?? "",
-      priceRangeId: p.priceRangeId ?? "",
-    });
     setModalOpen(true);
   };
 
