@@ -460,26 +460,25 @@ export function LabelPrinter({ products }: Props) {
           {editLayout && (
             <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
 
-              {/* Live preview */}
-              {previewSample && qrMap[previewSample.id] && (
-                <div className="flex justify-center">
-                  <CanvasPreview product={previewSample} qr={qrMap[previewSample.id]} size={labelSize} layout={layout} />
-                </div>
-              )}
-              {previewSample && !qrMap[previewSample.id] && (
-                <button
-                  onClick={() => generateQR(previewSample)}
-                  className="w-full text-xs text-brand-600 underline text-center py-2"
-                >
-                  Load preview
-                </button>
-              )}
+              {/* Live preview — sticky so it stays visible while scrolling sliders */}
+              <div className="sticky top-0 z-10 bg-brand-50/95 backdrop-blur-sm rounded-xl pb-2 pt-1">
+                {previewSample && qrMap[previewSample.id] ? (
+                  <div className="flex justify-center">
+                    <CanvasPreview product={previewSample} qr={qrMap[previewSample.id]} size={labelSize} layout={layout} />
+                  </div>
+                ) : previewSample ? (
+                  <button onClick={() => generateQR(previewSample)} className="w-full text-xs text-brand-600 underline text-center py-2">
+                    Load preview
+                  </button>
+                ) : null}
+                <p className="text-[10px] text-slate-400 text-center mt-1">Preview updates as you adjust ↓</p>
+              </div>
 
               {/* Field controls */}
               <div className="space-y-2">
                 <QrRow cfg={layout.qr} onChange={patchQr} xMax={labelSize.w} yMax={labelSize.h} />
-                <FieldRow label="Shop Name" cfg={layout.shopName} onChange={(p) => patchField("shopName", p)} xMax={labelSize.w} yMax={labelSize.h} />
-                <FieldRow label="Item Name" cfg={layout.itemName} onChange={(p) => patchField("itemName", p)} xMax={labelSize.w} yMax={labelSize.h} />
+                <FieldRow label="Shop Name" cfg={layout.shopName} onChange={(p) => patchField("shopName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
+                <FieldRow label="Item Name" cfg={layout.itemName} onChange={(p) => patchField("itemName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
                 <FieldRow label="Item Code" cfg={layout.itemCode} onChange={(p) => patchField("itemCode", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
               </div>
 
