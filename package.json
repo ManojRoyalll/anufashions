@@ -9,5 +9,8 @@
     "dev": "npm run dev -w @anufashions/api & npm run dev -w @anufashions/web",
     "build": "npm run build -w @anufashions/api && npm run build -w @anufashions/web",
     "start": "npm run start -w @anufashions/api"
+  },
+  "dependencies": {
+    "jsqr": "^1.4.0"
   }
 }

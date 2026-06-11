@@ -10,3 +10,12 @@ apps/*/.env
 apps/web/.vite
 apps/web/build
 apps/api/generated
+
+# Local PostgreSQL data
+.local-pg/
+
+# Superpowers brainstorm sessions (local only)
+.superpowers/brainstorm/
+
+# Claude Code local settings
+.claude/
