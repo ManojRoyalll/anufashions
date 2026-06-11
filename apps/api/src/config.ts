@@ -1,8 +1,8 @@
 import dotenv from "dotenv";
+import path from "path";
 
-dotenv.config({ path: "../../.env" });
-
-envCheck();
+// Load .env for local dev only — Vercel injects env vars directly
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 function envCheck() {
   const required = ["DATABASE_URL", "JWT_SECRET"];
@@ -12,6 +12,8 @@ function envCheck() {
     }
   }
 }
+
+envCheck();
 
 export const config = {
   port: Number(process.env.PORT || 4000),
