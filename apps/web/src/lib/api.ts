@@ -1,5 +1,4 @@
 import { supabase } from './supabase'
-import bcrypt from 'bcryptjs'
 
 // Helper — throws on Supabase error
 function check<T>(data: T | null, error: unknown): T {
@@ -165,11 +164,20 @@ const api = {
     // ── AUTH LOGIN ──
     if (path === '/auth/login') {
       const { email, password } = data
-      const { data: users, error } = await supabase.from('User').select('*').eq('email', email).limit(1)
-      if (error || !users?.length) throw new Error('Invalid credentials')
-      const valid = await bcrypt.compare(password, users[0].passwordHash)
-      if (!valid) throw new Error('Invalid credentials')
-      return { data: { token: 'supabase-session', user: { id: users[0].id, name: users[0].name, email: users[0].email, role: users[0].role } } }
+      const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error || !authData.session || !authData.user) throw new Error('Invalid credentials')
+      const user = authData.user
+      return {
+        data: {
+          token: authData.session.access_token,
+          user: {
+            id: user.id,
+            name: user.user_metadata?.name || user.email || 'Owner',
+            email: user.email || email,
+            role: user.app_metadata?.role || user.user_metadata?.role || 'ADMIN'
+          }
+        }
+      }
     }
 
     // ── PRODUCTS ──

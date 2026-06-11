@@ -1,15 +1,43 @@
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: #f7f8f3;
+  --color-brand-100: #ecefdf;
+  --color-brand-200: #d9dfc0;
+  --color-brand-300: #bdc791;
+  --color-brand-400: #9ea95f;
+  --color-brand-500: #7f8a44;
+  --color-brand-600: #6a7338;
+  --color-brand-700: #535a2f;
+  --color-brand-800: #444b2a;
+  --color-brand-900: #3a4027;
+  --color-terra-50: #fdf4f0;
+  --color-terra-100: #fbe5dc;
+  --color-terra-200: #f5c9b6;
+  --color-terra-300: #eda588;
+  --color-terra-400: #e07c57;
+  --color-terra-500: #c85a30;
+  --color-terra-600: #b44f2b;
+  --color-terra-700: #943f22;
+  --background-image-dashboard:
+    radial-gradient(circle at 10% 20%, rgba(127, 138, 68, 0.22), transparent 35%),
+    radial-gradient(circle at 95% 10%, rgba(200, 90, 48, 0.2), transparent 30%),
+    linear-gradient(145deg, #fdfcf8 0%, #f8f4eb 100%);
+}
 
 :root {
   color: #282619;
 }
 
+html {
+  font-family: var(--font-sans);
+}
+
 body {
-  @apply bg-dashboard min-h-screen text-slate-900 antialiased;
+  @apply min-h-screen bg-dashboard text-slate-900 antialiased;
 }
 
 .glass {
