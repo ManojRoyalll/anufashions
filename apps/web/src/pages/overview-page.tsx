@@ -75,15 +75,44 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-5">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={t.totalInvestment} value={inr(c.totalInvestment)} accent="brand" />
-        <StatCard label={t.totalInventoryValue} value={inr(c.totalInventoryValue)} accent="brand" />
-        <StatCard label={t.totalRevenue} value={inr(c.totalRevenue)} accent="terra" />
-        <StatCard label={t.totalProfit} value={inr(c.totalProfit)} accent="terra" />
+      {/* ── FINANCIAL SUMMARY ── */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Money In */}
+        <div className="lg:col-span-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">💰 Money Spent (Investment)</p>
+        </div>
+        <StatCard label="Total Investment" value={inr(c.totalInvestment)} accent="brand"
+          subtitle={c.totalTransportCost > 0 ? `incl. transport ${inr(c.totalTransportCost)}` : undefined} />
+        <StatCard label="Inventory Value (at cost)" value={inr(c.totalInventoryValue)} accent="brand"
+          subtitle="remaining stock at purchase price" />
+        <StatCard label={t.stockRemaining} value={String(c.stockRemaining)} accent="slate" subtitle={t.units} />
+
+        {/* Estimated (if all stock sold) */}
+        <div className="lg:col-span-3 mt-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">📊 Estimated (if all stock sold at listed price)</p>
+        </div>
+        <StatCard label="Estimated Revenue" value={inr(c.estimatedRevenue)} accent="brand"
+          subtitle="if all current stock sold" />
+        <StatCard label="Estimated Profit" value={inr(c.estimatedProfit)} accent="brand"
+          subtitle={c.totalInvestment > 0 ? `${((c.estimatedProfit / c.totalInvestment) * 100).toFixed(1)}% return on investment` : undefined} />
+        <StatCard label="Estimated Margin %" value={c.totalInventoryValue > 0 ? `${((c.estimatedProfit / c.totalInventoryValue) * 100).toFixed(1)}%` : "0%"} accent="brand"
+          subtitle="on current stock" />
+
+        {/* Actual sales */}
+        <div className="lg:col-span-3 mt-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">✅ Actual Sales So Far</p>
+        </div>
+        <StatCard label={t.totalRevenue} value={inr(c.totalRevenue)} accent="terra"
+          subtitle={`from ${c.totalSales} sales`} />
+        <StatCard label={t.totalProfit} value={inr(c.totalProfit)} accent="terra"
+          subtitle="gross profit from sales" />
+        <StatCard label={t.netProfit} value={inr(c.netProfitAfterExpenses)} accent="terra"
+          subtitle="after all expenses" />
         <StatCard label={t.monthlyProfit} value={inr(c.monthlyProfit)} accent="brand" />
         <StatCard label={t.todaysSalesCount} value={String(c.todaysSales)} accent="terra" subtitle={t.transactions} />
-        <StatCard label={t.stockRemaining} value={String(c.stockRemaining)} accent="slate" subtitle={t.units} />
-        <StatCard label={t.netProfit} value={inr(c.netProfitAfterExpenses)} accent="terra" />
+      </div>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       </section>
 
       <Card>

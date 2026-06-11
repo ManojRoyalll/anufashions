@@ -8,6 +8,9 @@ export interface DashboardCards {
   todaysSales: number;
   stockRemaining: number;
   netProfitAfterExpenses: number;
+  estimatedRevenue: number;
+  estimatedProfit: number;
+  totalTransportCost: number;
 }
 
 export interface DashboardPayload {

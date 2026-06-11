@@ -36,7 +36,8 @@ export default function BuyPage() {
   // Invoice
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [invoiceNo, setInvoiceNo] = useState("");
-  const [invoiceTotalAmount, setInvoiceTotalAmount] = useState("");
+  const [invoiceBillAmount, setInvoiceBillAmount] = useState("");
+  const [transportCost, setTransportCost] = useState("");
   const [billPhoto, setBillPhoto] = useState<string | undefined>();
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
 
@@ -153,6 +154,8 @@ export default function BuyPage() {
           purchaseDate: new Date(date).toISOString(),
           supplierId,
           invoiceNo: invoiceNo.trim() || `INV-${Date.now()}`,
+          invoiceBillAmount: invoiceBillAmount ? Number(invoiceBillAmount) : undefined,
+          transportCost: transportCost ? Number(transportCost) : 0,
           items: purchaseItems
         });
       }
@@ -172,7 +175,8 @@ export default function BuyPage() {
       // Reset form
       setItems([emptyItem()]);
       setInvoiceNo("");
-      setInvoiceTotalAmount("");
+      setInvoiceBillAmount("");
+      setTransportCost("");
       setBillPhoto(undefined);
       setSelectedSupplier(null);
       setNewSupplierName("");
@@ -274,13 +278,33 @@ export default function BuyPage() {
                   <p className="text-xs text-slate-500 mb-1">{t.invoiceNo}</p>
                   <Input placeholder="INV-2026-001" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} autoComplete="off" />
                 </div>
-                <div className="col-span-2">
-                  <p className="text-xs text-slate-500 mb-1">Invoice Bill Total (₹) <span className="text-brand-600">— including GST / actual amount paid</span></p>
-                  <Input type="number" placeholder="Enter total amount on the invoice bill" value={invoiceTotalAmount} onChange={(e) => setInvoiceTotalAmount(e.target.value)} />
-                  {invoiceTotalAmount && totalInvestment > 0 && Math.abs(Number(invoiceTotalAmount) - totalInvestment) > 1 && (
-                    <p className="text-xs mt-1 text-terra-600 font-medium">
-                      Difference: {Number(invoiceTotalAmount) > totalInvestment ? "+" : ""}{(Number(invoiceTotalAmount) - totalInvestment).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })} (likely GST / transport charges)
-                    </p>
+                <div className="col-span-2 space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹) <span className="text-slate-400 font-normal">— total on the invoice including GST</span></p>
+                    <Input type="number" placeholder="Amount on invoice bill" value={invoiceBillAmount} onChange={(e) => setInvoiceBillAmount(e.target.value)} />
+                    {invoiceBillAmount && totalInvestment > 0 && Math.abs(Number(invoiceBillAmount) - totalInvestment) > 1 && (
+                      <p className="text-xs mt-1 text-terra-600 font-medium">
+                        Diff from items cost: {Number(invoiceBillAmount) > totalInvestment ? "+" : ""}
+                        {(Number(invoiceBillAmount) - totalInvestment).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })}
+                        {" "}{Number(invoiceBillAmount) > totalInvestment ? "(includes GST/extra)" : "(discount given)"}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-brand-700 mb-1">Transport / Delivery Cost (₹) <span className="text-slate-400 font-normal">— courier, auto, lorry charges</span></p>
+                    <Input type="number" placeholder="0" value={transportCost} onChange={(e) => setTransportCost(e.target.value)} />
+                  </div>
+                  {/* True investment summary */}
+                  {(invoiceBillAmount || transportCost) && (
+                    <div className="rounded-xl bg-terra-50 px-4 py-3 text-sm space-y-1">
+                      <p className="font-bold text-terra-800 text-xs uppercase tracking-wide">True Investment for this purchase</p>
+                      {invoiceBillAmount && <div className="flex justify-between"><span className="text-slate-600">Invoice Bill</span><span className="font-semibold">₹{Number(invoiceBillAmount).toLocaleString("en-IN")}</span></div>}
+                      {transportCost && Number(transportCost) > 0 && <div className="flex justify-between"><span className="text-slate-600">Transport</span><span className="font-semibold">₹{Number(transportCost).toLocaleString("en-IN")}</span></div>}
+                      <div className="flex justify-between border-t border-terra-200 pt-1 font-bold text-terra-800">
+                        <span>Total Paid</span>
+                        <span>₹{((Number(invoiceBillAmount) || totalInvestment) + (Number(transportCost) || 0)).toLocaleString("en-IN")}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
                 <div className="col-span-2">

@@ -7,15 +7,39 @@ export const dashboardRouter = Router();
 
 dashboardRouter.get("/", async (_req, res, next) => {
   try {
-    const [metrics, products, sales, expenses] = await Promise.all([
-      prisma.businessMetric.findUnique({ where: { id: "singleton" } }),
+    const [products, sales, expenses, purchases] = await Promise.all([
       prisma.product.findMany(),
       prisma.sale.findMany(),
-      prisma.expense.findMany()
+      prisma.expense.findMany(),
+      prisma.purchase.findMany({ include: { items: true } })
     ]);
 
-    const totalInvestment = toNumber(metrics?.totalInvestment || 0);
-    const totalInventoryValue = products.reduce((sum, p) => sum + toNumber(p.purchasePrice) * p.quantity, 0);
+    // ── TRUE TOTAL INVESTMENT ──
+    // Sum of all purchases: invoice bill amount (if provided) + transport cost,
+    // otherwise items cost + transport cost. This is actual money spent.
+    const totalInvestment = purchases.reduce((sum, p) => {
+      const invoiceAmt = p.invoiceBillAmount ? toNumber(p.invoiceBillAmount) : null;
+      const itemsCost = p.items.reduce((s, i) => s + toNumber(i.costPrice) * i.quantity, 0);
+      const transport = toNumber(p.transportCost);
+      return sum + (invoiceAmt ?? itemsCost) + transport;
+    }, 0);
+
+    // ── CURRENT INVENTORY VALUE ──
+    // What remaining stock is worth at purchase price
+    const totalInventoryValue = products.reduce(
+      (sum, p) => sum + toNumber(p.purchasePrice) * p.quantity, 0
+    );
+
+    // ── ESTIMATED REVENUE & PROFIT ──
+    // If all current stock is sold at listed selling price
+    const estimatedRevenue = products.reduce(
+      (sum, p) => sum + toNumber(p.sellingPrice) * p.quantity, 0
+    );
+    const estimatedProfit = products.reduce(
+      (sum, p) => sum + (toNumber(p.sellingPrice) - toNumber(p.purchasePrice)) * p.quantity, 0
+    );
+
+    // ── ACTUAL SALES FIGURES ──
     const totalSales = sales.length;
     const totalRevenue = sales.reduce((sum, s) => sum + toNumber(s.revenue), 0);
     const totalProfit = sales.reduce((sum, s) => sum + toNumber(s.netProfit), 0);
@@ -35,7 +59,14 @@ dashboardRouter.get("/", async (_req, res, next) => {
     const totalExpenses = expenses.reduce((sum, e) => sum + toNumber(e.amount), 0);
     const netProfitAfterExpenses = totalProfit - totalExpenses;
 
-    const investmentRecovery = calculateBreakEven(totalInvestment, totalProfit);
+    // ── TRANSPORT COSTS TOTAL ──
+    const totalTransportCost = purchases.reduce(
+      (sum, p) => sum + toNumber(p.transportCost), 0
+    );
+
+    // ── INVESTMENT RECOVERY ──
+    // Progress = how much of total investment has been recovered through actual sales revenue
+    const investmentRecovery = calculateBreakEven(totalInvestment, totalRevenue);
 
     res.json({
       cards: {
@@ -47,7 +78,11 @@ dashboardRouter.get("/", async (_req, res, next) => {
         monthlyProfit,
         todaysSales,
         stockRemaining,
-        netProfitAfterExpenses
+        netProfitAfterExpenses,
+        // New fields
+        estimatedRevenue,
+        estimatedProfit,
+        totalTransportCost
       },
       investmentRecovery
     });

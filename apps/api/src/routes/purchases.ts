@@ -9,6 +9,8 @@ const purchaseSchema = z.object({
   purchaseDate: z.string().datetime(),
   supplierId: z.string(),
   invoiceNo: z.string().min(1),
+  invoiceBillAmount: z.number().nonnegative().optional(),
+  transportCost: z.number().nonnegative().default(0),
   items: z.array(
     z.object({
       productId: z.string(),
@@ -37,7 +39,16 @@ purchasesRouter.get("/", async (_req, res, next) => {
 purchasesRouter.post("/", async (req, res, next) => {
   try {
     const body = purchaseSchema.parse(req.body);
-    const totalAmount = body.items.reduce((acc, i) => acc + i.quantity * i.costPrice, 0);
+    // Items cost from individual item prices
+    const itemsCost = body.items.reduce((acc, i) => acc + i.quantity * i.costPrice, 0);
+    // Transport cost to be distributed
+    const transportCost = body.transportCost ?? 0;
+    // Invoice bill amount (what was actually paid on the invoice — may include GST)
+    const invoiceBillAmount = body.invoiceBillAmount ?? null;
+    // True total investment = invoice bill + transport (if invoice provided), else items cost + transport
+    const actualInvestment = (invoiceBillAmount ?? itemsCost) + transportCost;
+    // totalAmount stored = actual investment (true cost to business)
+    const totalAmount = actualInvestment;
 
     const purchase = await prisma.$transaction(async (tx) => {
       const created = await tx.purchase.create({
@@ -46,6 +57,8 @@ purchasesRouter.post("/", async (req, res, next) => {
           supplierId: body.supplierId,
           invoiceNo: body.invoiceNo,
           totalAmount,
+          invoiceBillAmount: invoiceBillAmount ?? null,
+          transportCost,
           items: {
             create: body.items.map((item) => ({
               productId: item.productId,
@@ -76,6 +89,7 @@ purchasesRouter.post("/", async (req, res, next) => {
         });
       }
 
+      // Update total investment with ACTUAL money spent (invoice + transport)
       await tx.businessMetric.upsert({
         where: { id: "singleton" },
         update: { totalInvestment: { increment: totalAmount } },
