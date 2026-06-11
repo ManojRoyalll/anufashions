@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import * as XLSX from "xlsx";
 import { Printer, Settings2, Copy, Download, FileSpreadsheet, FileText } from "lucide-react";
@@ -48,7 +48,6 @@ async function renderLabelCanvas(
 ): Promise<HTMLCanvasElement> {
   const DPI = 300;
   const MM = DPI / 25.4;
-  const PT = DPI / 72;
   const W = Math.round(size.w * MM);
   const H = Math.round(size.h * MM);
 
@@ -58,24 +57,20 @@ async function renderLabelCanvas(
 
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "#bbb";
-  ctx.lineWidth = Math.max(1, 0.25 * MM);
-  ctx.strokeRect(0, 0, W, H);
 
-  const pad = 2.5 * MM;
+  const pad = 2 * MM;
 
-  // QR — take up left portion of the label
-  const qrPx = Math.min(size.h - 5, size.w * 0.35, 55) * MM;
+  // QR: fill almost full height minus padding on both sides
+  const qrPx = H - 2 * pad;
   const qrImg = new Image();
   qrImg.src = qrDataUrl;
   await new Promise<void>((res) => { qrImg.onload = () => res(); });
-  const qrY = (H - qrPx) / 2;
-  ctx.drawImage(qrImg, pad, qrY, qrPx, qrPx);
+  ctx.drawImage(qrImg, pad, pad, qrPx, qrPx);
 
-  // Text area — right of QR
+  // Text area — to the right of QR, uses remaining width
   const textX = pad + qrPx + 2 * MM;
   const textMaxW = W - textX - pad;
-  let y = pad + 1 * MM;
+  const textAreaH = H - 2 * pad;
 
   const truncate = (text: string, font: string, maxW: number) => {
     ctx.font = font;
@@ -85,32 +80,44 @@ async function renderLabelCanvas(
     return t + "…";
   };
 
-  // Scale text to label height
-  const scale = size.h / 50; // baseline 50mm
+  // Font sizes: scale to label height, baseline 50mm
+  const scale = Math.max(0.7, size.h / 50);
+  const shopPx  = Math.round(Math.max(18, 20 * scale));
+  const namePx  = Math.round(Math.max(22, 26 * scale));
+  const catPx   = Math.round(Math.max(16, 19 * scale));
+  const codePx  = Math.round(Math.max(16, 19 * scale));
+  const pricePx = Math.round(Math.max(28, 36 * scale));
 
-  const shopPt  = Math.round(Math.max(6, 6.5 * scale) * PT);
-  const namePt  = Math.round(Math.max(7, 8 * scale) * PT);
-  const catPt   = Math.round(Math.max(5.5, 6 * scale) * PT);
-  const codePt  = Math.round(Math.max(5.5, 6 * scale) * PT);
-  const pricePt = Math.round(Math.max(9, 11 * scale) * PT);
-  const lineGap = Math.round(0.8 * MM);
+  // Measure total text block height to vertically center it
+  const lineGap = Math.round(3 * scale);
+  const hasCategory = !!product.category?.name;
+  const blockH = shopPx + lineGap + namePx + lineGap
+    + (hasCategory ? catPx + lineGap : 0)
+    + codePx + lineGap + pricePx;
 
-  ctx.fillStyle = "#555"; ctx.font = `bold ${shopPt}px Arial`;
-  y += shopPt; ctx.fillText("Anu Fashions", textX, y); y += lineGap;
+  let y = pad + Math.max(0, (textAreaH - blockH) / 2);
 
-  ctx.fillStyle = "#000"; ctx.font = `bold ${namePt}px Arial`;
-  y += namePt; ctx.fillText(truncate(product.name, `bold ${namePt}px Arial`, textMaxW), textX, y); y += lineGap;
+  // Shop name — bold black
+  ctx.fillStyle = "#000"; ctx.font = `bold ${shopPx}px Arial`;
+  y += shopPx; ctx.fillText("Anu Fashions", textX, y); y += lineGap;
 
-  if (product.category?.name) {
-    ctx.fillStyle = "#555"; ctx.font = `${catPt}px Arial`;
-    y += catPt; ctx.fillText(product.category.name, textX, y); y += lineGap;
+  // Product name — bold black, larger
+  ctx.fillStyle = "#000"; ctx.font = `bold ${namePx}px Arial`;
+  y += namePx; ctx.fillText(truncate(product.name, `bold ${namePx}px Arial`, textMaxW), textX, y); y += lineGap;
+
+  // Category — bold black
+  if (hasCategory) {
+    ctx.fillStyle = "#000"; ctx.font = `bold ${catPx}px Arial`;
+    y += catPx; ctx.fillText(product.category!.name, textX, y); y += lineGap;
   }
 
-  ctx.fillStyle = "#333"; ctx.font = `${codePt}px monospace`;
-  y += codePt; ctx.fillText(truncate(displayCode(product.code), `${codePt}px monospace`, textMaxW), textX, y); y += lineGap + 1 * MM;
+  // Code — bold black monospace
+  ctx.fillStyle = "#000"; ctx.font = `bold ${codePx}px monospace`;
+  y += codePx; ctx.fillText(truncate(displayCode(product.code), `bold ${codePx}px monospace`, textMaxW), textX, y); y += lineGap;
 
-  ctx.fillStyle = "#000"; ctx.font = `bold ${pricePt}px Arial`;
-  y += pricePt; ctx.fillText(inr(product.sellingPrice), textX, y);
+  // Price — largest, bold black
+  ctx.fillStyle = "#000"; ctx.font = `bold ${pricePx}px Arial`;
+  y += pricePx; ctx.fillText(inr(product.sellingPrice), textX, y);
 
   return canvas;
 }
@@ -325,6 +332,20 @@ function downloadExcelAll(products: Product[], copies: Record<string, number>) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// ── WYSIWYG canvas preview ────────────────────────────────────────────────
+function CanvasPreview({ product, qr, size }: { product: Product; qr: string; size: LabelSize }) {
+  const [src, setSrc] = useState<string>("");
+  useEffect(() => {
+    if (!qr) return;
+    renderLabelCanvas(product, qr, size).then((c) => setSrc(c.toDataURL("image/png")));
+  }, [product, qr, size]);
+  const maxW = Math.min(size.w * 3, 380);
+  const maxH = Math.round(maxW * (size.h / size.w));
+  return src
+    ? <img src={src} style={{ width: maxW, height: maxH, borderRadius: 6, border: "1px solid #ddd" }} alt="label preview" />
+    : <div style={{ width: maxW, height: maxH, background: "#f5f5f0", borderRadius: 6 }} className="animate-pulse" />;
+}
+
 type Props = { products: Product[] };
 
 export function LabelPrinter({ products }: Props) {
@@ -421,11 +442,10 @@ export function LabelPrinter({ products }: Props) {
 
   // ── Print (browser) ──────────────────────────────────────────────────────
   const buildLabelHTML = (items: { product: Product; count: number; qr: string }[], size: LabelSize) => {
-    const qrPx = Math.min(size.h - 5, size.w * 0.35, 55);
     const labels = items.flatMap(({ product, count, qr }) =>
       Array.from({ length: count }).map(() => `
         <div class="label">
-          <div class="qr"><img src="${qr}" width="${qrPx}" height="${qrPx}" /></div>
+          <div class="qr"><img src="${qr}" /></div>
           <div class="info">
             <div class="shop">Anu Fashions</div>
             <div class="name">${product.name.length > 35 ? product.name.slice(0, 33) + "…" : product.name}</div>
@@ -435,17 +455,19 @@ export function LabelPrinter({ products }: Props) {
           </div>
         </div>`)
     );
-    const scale = size.h / 50;
+    const scale = Math.max(0.7, size.h / 50);
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
       * { margin:0; padding:0; box-sizing:border-box; }
       body { font-family: Arial, sans-serif; background: white; }
-      .label { width:${size.w}mm; height:${size.h}mm; display:flex; align-items:center; gap:2mm; padding:2.5mm; overflow:hidden; page-break-after:always; }
-      .qr { flex-shrink:0; } .qr img { display:block; } .info { flex:1; overflow:hidden; }
-      .shop { font-size:${Math.max(5.5, 6 * scale).toFixed(1)}pt; color:#555; font-weight:bold; }
-      .name { font-size:${Math.max(6.5, 7.5 * scale).toFixed(1)}pt; font-weight:bold; color:#000; line-height:1.25; margin:0.3mm 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .cat  { font-size:${Math.max(5, 5.5 * scale).toFixed(1)}pt; color:#555; }
-      .code { font-size:${Math.max(5, 5.5 * scale).toFixed(1)}pt; color:#333; font-family:monospace; margin-top:0.3mm; }
-      .price { font-size:${Math.max(8, 10 * scale).toFixed(1)}pt; font-weight:bold; color:#000; margin-top:0.6mm; }
+      .label { width:${size.w}mm; height:${size.h}mm; display:flex; align-items:stretch; gap:2mm; padding:2mm; overflow:hidden; page-break-after:always; }
+      .qr { flex-shrink:0; display:flex; align-items:center; }
+      .qr img { display:block; width:calc(${size.h}mm - 4mm); height:calc(${size.h}mm - 4mm); }
+      .info { flex:1; overflow:hidden; display:flex; flex-direction:column; justify-content:center; gap:${(1.2 * scale).toFixed(1)}mm; }
+      .shop  { font-size:${(5.5 * scale).toFixed(1)}pt; font-weight:900; color:#000; }
+      .name  { font-size:${(7 * scale).toFixed(1)}pt;   font-weight:900; color:#000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .cat   { font-size:${(5.5 * scale).toFixed(1)}pt; font-weight:700; color:#000; }
+      .code  { font-size:${(5.5 * scale).toFixed(1)}pt; font-weight:700; color:#000; font-family:monospace; }
+      .price { font-size:${(9.5 * scale).toFixed(1)}pt; font-weight:900; color:#000; }
       @media print { @page { size:${size.w}mm ${size.h}mm; margin:0; } body { margin:0; } .label { page-break-after:always; } }
     </style></head><body>${labels.join("")}</body></html>`;
   };
@@ -611,35 +633,14 @@ export function LabelPrinter({ products }: Props) {
         </div>
       </Drawer>
 
-      {/* Label preview modal */}
+      {/* Label preview modal — shows actual rendered canvas (WYSIWYG) */}
       <Modal open={!!previewProduct} onClose={() => setPreviewProduct(null)} title="Label Preview" size="sm">
         {previewProduct && (
           <div className="space-y-4">
-            <p className="text-xs text-slate-500 text-center">{labelSize.w}×{labelSize.h}mm — {copies[previewProduct.id] ?? 1} labels</p>
+            <p className="text-xs text-slate-500 text-center">{labelSize.w}×{labelSize.h}mm — {copies[previewProduct.id] ?? 1} label(s)</p>
             <div className="flex justify-center">
-              <div style={{
-                width: `${Math.min(labelSize.w * 3, 320)}px`,
-                height: `${Math.min(labelSize.h * 3, 220)}px`,
-                border: "2px dashed #bdc791", borderRadius: "8px",
-                display: "flex", alignItems: "center", gap: "8px",
-                padding: "8px 12px", background: "white", overflow: "hidden"
-              }}>
-                {qrMap[previewProduct.id] && (
-                  <img
-                    src={qrMap[previewProduct.id]}
-                    width={Math.min(labelSize.h * 2.5, 80)}
-                    height={Math.min(labelSize.h * 2.5, 80)}
-                    alt="QR" style={{ flexShrink: 0 }}
-                  />
-                )}
-                <div style={{ flex: 1, overflow: "hidden" }}>
-                  <div style={{ fontSize: "10px", color: "#666", fontWeight: "bold" }}>Anu Fashions</div>
-                  <div style={{ fontSize: "13px", fontWeight: "bold", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{previewProduct.name}</div>
-                  {previewProduct.category?.name && <div style={{ fontSize: "9px", color: "#555" }}>{previewProduct.category.name}</div>}
-                  <div style={{ fontSize: "9px", fontFamily: "monospace" }}>{displayCode(previewProduct.code)}</div>
-                  <div style={{ fontSize: "16px", fontWeight: "bold" }}>{inr(previewProduct.sellingPrice)}</div>
-                </div>
-              </div>
+              {/* Render actual canvas to an img so preview = exactly what prints */}
+              <CanvasPreview product={previewProduct} qr={qrMap[previewProduct.id] ?? ""} size={labelSize} />
             </div>
             <div className="flex gap-2">
               <Button variant="secondary" className="flex-1" onClick={() => setPreviewProduct(null)}>Close</Button>
