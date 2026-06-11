@@ -1,13 +1,16 @@
+import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
-export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
+export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  (props, ref) => (
     <input
       {...props}
+      ref={ref}
       className={cn(
         "w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none",
         props.className
       )}
     />
-  );
-}
+  )
+);
+Input.displayName = "Input";
