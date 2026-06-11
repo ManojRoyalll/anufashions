@@ -20,7 +20,12 @@ app.get("/health", (_req, res) => {
 app.use("/api", router);
 app.use(errorMiddleware);
 
-app.listen(config.port, () => {
-  // eslint-disable-next-line no-console
-  console.log(`API running on port ${config.port}`);
-});
+// For local development
+if (process.env.VERCEL !== "1") {
+  app.listen(config.port, () => {
+    console.log(`API running on port ${config.port}`);
+  });
+}
+
+// For Vercel serverless
+export default app;
