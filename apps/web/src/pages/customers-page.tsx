@@ -45,6 +45,10 @@ export default function CustomersPage() {
       setErr("Name is required (at least 2 characters)");
       return;
     }
+    if (form.phone.trim() && !/^\d{10}$/.test(form.phone.trim())) {
+      setErr("Phone must be exactly 10 digits");
+      return;
+    }
     try {
       const payload = { name: form.customerName.trim(), phone: form.phone || undefined, address: form.address || undefined };
       if (editing) { await api.put(`/customers/${editing.id}`, payload); show(t.save + " ✓"); }
@@ -90,8 +94,8 @@ export default function CustomersPage() {
               className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
             />
           </FormField>
-          <FormField label={t.phone}>
-            <input type="tel" autoComplete="off" placeholder="Phone number" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+          <FormField label={t.phone} error={form.phone && !/^\d{10}$/.test(form.phone.trim()) ? "Enter 10-digit mobile number" : undefined}>
+            <input type="tel" autoComplete="off" placeholder="9876543210" maxLength={10} value={form.phone} onChange={(e) => { set("phone", e.target.value.replace(/\D/g, "")); setErr(""); }} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
           </FormField>
           <FormField label={t.address}>
             <input type="text" autoComplete="off" placeholder="Address" value={form.address} onChange={(e) => set("address", e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />

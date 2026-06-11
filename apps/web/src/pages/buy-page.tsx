@@ -17,7 +17,7 @@ type ItemRow = {
 };
 
 function emptyItem(): ItemRow {
-  return { id: Math.random().toString(36).slice(2), title: "", categoryName: "", buyPrice: "", sellPrice: "", maxDiscount: "20", quantity: "" };
+  return { id: Math.random().toString(36).slice(2), title: "", categoryName: "", buyPrice: "", sellPrice: "", maxDiscount: "", quantity: "" };
 }
 
 export default function BuyPage() {

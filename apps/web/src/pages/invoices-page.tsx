@@ -5,17 +5,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
 import { PageHeader } from "@/components/ui/page-header";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { Modal } from "@/components/ui/modal";
 import { useToastStore } from "@/store/toast";
 import { useLang } from "@/hooks/use-lang";
 import { inr } from "@/lib/utils";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Eye } from "lucide-react";
 
 type Supplier = { id: string; name: string };
 type Product = { id: string; name: string; purchasePrice: number };
 type InvoiceItem = { id: string; productId: string; quantity: number; costPrice: number };
 type PurchaseRecord = {
   id: string; purchaseDate: string; invoiceNo: string; totalAmount: number;
-  supplier?: { name: string }; items: { quantity: number }[];
+  supplier?: { name: string; phone?: string };
+  items: { id: string; quantity: number; costPrice: number; lineTotal: number; product?: { name: string; code: string } }[];
 };
 
 function emptyItem(): InvoiceItem {
@@ -37,6 +39,7 @@ export default function InvoicesPage() {
   const [billPhoto, setBillPhoto] = useState<string | undefined>();
   const [items, setItems] = useState<InvoiceItem[]>([emptyItem()]);
   const [saving, setSaving] = useState(false);
+  const [detailRecord, setDetailRecord] = useState<PurchaseRecord | null>(null);
 
   const load = () =>
     Promise.all([
@@ -234,16 +237,21 @@ export default function InvoicesPage() {
                 </thead>
                 <tbody>
                   {history.map((h) => (
-                    <tr key={h.id} className="border-t border-brand-50 hover:bg-brand-50/40">
+                    <tr key={h.id} className="border-t border-brand-50 hover:bg-brand-50/40 cursor-pointer" onClick={() => setDetailRecord(h)}>
                       <td className="py-2">{new Date(h.purchaseDate).toLocaleDateString("en-IN")}</td>
                       <td className="font-medium">{h.supplier?.name ?? "-"}</td>
                       <td className="text-slate-500">{h.invoiceNo || "-"}</td>
                       <td className="text-right">{h.items.length}</td>
                       <td className="text-right font-semibold text-brand-800">{inr(Number(h.totalAmount))}</td>
-                      <td className="text-right">
-                        <button onClick={() => deleteInvoice(h.id)} className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                      <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex gap-1 justify-end">
+                          <button onClick={(e) => { e.stopPropagation(); setDetailRecord(h); }} className="p-1.5 text-brand-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg">
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); deleteInvoice(h.id); }} className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -253,6 +261,53 @@ export default function InvoicesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Invoice detail modal */}
+      <Modal open={!!detailRecord} onClose={() => setDetailRecord(null)} title={`Invoice Details — ${detailRecord?.invoiceNo || "—"}`} size="md">
+        {detailRecord && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-brand-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Supplier</p>
+                <p className="font-semibold text-brand-900">{detailRecord.supplier?.name ?? "—"}</p>
+                {detailRecord.supplier?.phone && <p className="text-xs text-slate-500">{detailRecord.supplier.phone}</p>}
+              </div>
+              <div className="bg-brand-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Date</p>
+                <p className="font-semibold text-brand-900">{new Date(detailRecord.purchaseDate).toLocaleDateString("en-IN", { dateStyle: "long" })}</p>
+              </div>
+              <div className="bg-brand-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Invoice No</p>
+                <p className="font-semibold text-brand-900">{detailRecord.invoiceNo || "—"}</p>
+              </div>
+              <div className="bg-terra-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Total Amount</p>
+                <p className="font-bold text-xl text-terra-700">{inr(Number(detailRecord.totalAmount))}</p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items Purchased ({detailRecord.items.length})</p>
+              <div className="space-y-1.5">
+                {detailRecord.items.map((item, i) => (
+                  <div key={item.id ?? i} className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-brand-900 truncate">{item.product?.name ?? "—"}</p>
+                      <p className="text-xs text-slate-500">{item.product?.code}</p>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.costPrice))}</p>
+                      <p className="text-xs text-brand-700 font-bold">{inr(Number(item.lineTotal ?? Number(item.costPrice) * item.quantity))}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Button variant="secondary" className="w-full" onClick={() => setDetailRecord(null)}>Close</Button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
