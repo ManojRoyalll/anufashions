@@ -47,7 +47,8 @@ async function renderLabelCanvas(
   size: LabelSize
 ): Promise<HTMLCanvasElement> {
   const DPI = 300;
-  const MM = DPI / 25.4;
+  const MM = DPI / 25.4;      // pixels per mm at 300 DPI
+  const PT = DPI / 72;        // pixels per point at 300 DPI  (~4.17)
   const W = Math.round(size.w * MM);
   const H = Math.round(size.h * MM);
 
@@ -60,15 +61,15 @@ async function renderLabelCanvas(
 
   const pad = 2 * MM;
 
-  // QR: fill almost full height minus padding on both sides
+  // QR: fill almost full height minus padding
   const qrPx = H - 2 * pad;
   const qrImg = new Image();
   qrImg.src = qrDataUrl;
   await new Promise<void>((res) => { qrImg.onload = () => res(); });
   ctx.drawImage(qrImg, pad, pad, qrPx, qrPx);
 
-  // Text area — to the right of QR, uses remaining width
-  const textX = pad + qrPx + 2 * MM;
+  // Text area — right of QR
+  const textX = pad + qrPx + 2.5 * MM;
   const textMaxW = W - textX - pad;
   const textAreaH = H - 2 * pad;
 
@@ -80,47 +81,47 @@ async function renderLabelCanvas(
     return t + "…";
   };
 
-  // Font sizes: scale to label height, baseline 50mm
-  const scale = Math.max(0.7, size.h / 50);
-  const shopPx  = Math.round(Math.max(18, 20 * scale));
-  const namePx  = Math.round(Math.max(22, 26 * scale));
-  const catPx   = Math.round(Math.max(16, 19 * scale));
-  const codePx  = Math.round(Math.max(16, 19 * scale));
-  const pricePx = Math.round(Math.max(28, 36 * scale));
+  // Font sizes in POINTS (will be multiplied by PT to get canvas pixels)
+  // Scale gently for larger labels
+  const sc = Math.max(1, size.h / 50);
+  const shopPx  = Math.round(7.5  * sc * PT);
+  const namePx  = Math.round(11   * sc * PT);
+  const catPx   = Math.round(7.5  * sc * PT);
+  const codePx  = Math.round(7.5  * sc * PT);
+  const pricePx = Math.round(16   * sc * PT);
+  const lineGap = Math.round(2.5  * sc * MM);
 
-  // Measure total text block height to vertically center it
-  const lineGap = Math.round(3 * scale);
   const hasCategory = !!product.category?.name;
   const blockH = shopPx + lineGap + namePx + lineGap
     + (hasCategory ? catPx + lineGap : 0)
     + codePx + lineGap + pricePx;
 
+  // Vertically centre the text block
   let y = pad + Math.max(0, (textAreaH - blockH) / 2);
 
-  // Shop name — bold black
-  ctx.fillStyle = "#000"; ctx.font = `bold ${shopPx}px Arial`;
+  ctx.fillStyle = "#000";
+
+  ctx.font = `bold ${shopPx}px Arial`;
   y += shopPx; ctx.fillText("Anu Fashions", textX, y); y += lineGap;
 
-  // Product name — bold black, larger
-  ctx.fillStyle = "#000"; ctx.font = `bold ${namePx}px Arial`;
+  ctx.font = `bold ${namePx}px Arial`;
   y += namePx; ctx.fillText(truncate(product.name, `bold ${namePx}px Arial`, textMaxW), textX, y); y += lineGap;
 
-  // Category — bold black
   if (hasCategory) {
-    ctx.fillStyle = "#000"; ctx.font = `bold ${catPx}px Arial`;
+    ctx.font = `bold ${catPx}px Arial`;
     y += catPx; ctx.fillText(product.category!.name, textX, y); y += lineGap;
   }
 
-  // Code — bold black monospace
-  ctx.fillStyle = "#000"; ctx.font = `bold ${codePx}px monospace`;
+  ctx.font = `bold ${codePx}px monospace`;
   y += codePx; ctx.fillText(truncate(displayCode(product.code), `bold ${codePx}px monospace`, textMaxW), textX, y); y += lineGap;
 
-  // Price — largest, bold black
-  ctx.fillStyle = "#000"; ctx.font = `bold ${pricePx}px Arial`;
+  ctx.font = `bold ${pricePx}px Arial`;
   y += pricePx; ctx.fillText(inr(product.sellingPrice), textX, y);
 
   return canvas;
 }
+
+// ── PDF GENERATOR
 
 // ── PDF GENERATOR ─────────────────────────────────────────────────────────
 // Builds a multi-page PDF manually (no library needed).
