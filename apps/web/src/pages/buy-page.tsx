@@ -5,7 +5,7 @@ import { useToastStore } from "@/store/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Modal } from "@/components/ui/modal";
+import { Drawer } from "@/components/ui/drawer";
 import { inr } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -454,10 +454,10 @@ export default function BuyPage() {
         </CardContent>
       </Card>
 
-      {/* ── PURCHASE DETAIL MODAL ── */}
-      <Modal open={!!detailRecord} onClose={() => setDetailRecord(null)} title={`Purchase — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`} size="md">
+      {/* ── PURCHASE DETAIL DRAWER ── */}
+      <Drawer open={!!detailRecord} onClose={() => setDetailRecord(null)} title={`Purchase — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`}>
         {detailRecord && (
-          <div className="space-y-4">
+          <>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-brand-50 rounded-xl p-3">
                 <p className="text-xs text-slate-500">Supplier</p>
@@ -476,12 +476,24 @@ export default function BuyPage() {
                 <p className="text-xs text-slate-500">Total Amount</p>
                 <p className="font-bold text-xl text-terra-700">{inr(Number(detailRecord.totalAmount))}</p>
               </div>
+              {detailRecord.invoiceBillAmount && (
+                <div className="bg-brand-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500">Invoice Bill Amount</p>
+                  <p className="font-semibold text-brand-900">{inr(Number(detailRecord.invoiceBillAmount))}</p>
+                </div>
+              )}
+              {detailRecord.transportCost > 0 && (
+                <div className="bg-brand-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500">Transport Cost</p>
+                  <p className="font-semibold text-brand-900">{inr(Number(detailRecord.transportCost))}</p>
+                </div>
+              )}
             </div>
 
             {detailRecord.items?.length > 0 && (
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items ({detailRecord.items.length})</p>
-                <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                <div className="space-y-1.5">
                   {detailRecord.items.map((item: any, i: number) => (
                     <div key={item.id ?? i} className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5">
                       <div className="flex-1 min-w-0">
@@ -502,16 +514,14 @@ export default function BuyPage() {
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Bill Photo / బిల్లు ఫోటో</p>
                 <a href={detailRecord.billPhoto} target="_blank" rel="noopener noreferrer">
-                  <img src={detailRecord.billPhoto} alt="Bill" className="w-full max-h-72 object-contain rounded-xl border border-brand-200 cursor-pointer hover:opacity-90" />
+                  <img src={detailRecord.billPhoto} alt="Bill" className="w-full object-contain rounded-xl border border-brand-200 cursor-pointer hover:opacity-90" />
                 </a>
                 <p className="text-xs text-slate-400 mt-1 text-center">Tap to open full size</p>
               </div>
             )}
-
-            <Button variant="secondary" className="w-full" onClick={() => setDetailRecord(null)}>Close</Button>
-          </div>
+          </>
         )}
-      </Modal>
+      </Drawer>
     </div>
   );
 }
