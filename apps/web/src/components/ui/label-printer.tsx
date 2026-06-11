@@ -47,8 +47,8 @@ async function renderLabelCanvas(
   size: LabelSize
 ): Promise<HTMLCanvasElement> {
   const DPI = 300;
-  const MM = DPI / 25.4;      // pixels per mm at 300 DPI
-  const PT = DPI / 72;        // pixels per point at 300 DPI  (~4.17)
+  const MM = DPI / 25.4;   // canvas pixels per mm
+  const PT = DPI / 72;     // canvas pixels per point
   const W = Math.round(size.w * MM);
   const H = Math.round(size.h * MM);
 
@@ -59,19 +59,42 @@ async function renderLabelCanvas(
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, W, H);
 
-  const pad = 2 * MM;
+  const pad = 1.5 * MM;
 
-  // QR: fill almost full height minus padding
-  const qrPx = H - 2 * pad;
+  // QR: square, max 80% of label height but also capped so text column ≥ 45% of label width
+  const maxQRbyHeight = (H - 2 * pad) * 0.80;
+  const maxQRbyWidth  = (W - 2 * pad) * 0.45;  // leave at least 55% for text
+  const qrPx = Math.min(maxQRbyHeight, maxQRbyWidth);
+  const qrY  = (H - qrPx) / 2;                  // vertically centered
+
   const qrImg = new Image();
   qrImg.src = qrDataUrl;
   await new Promise<void>((res) => { qrImg.onload = () => res(); });
-  ctx.drawImage(qrImg, pad, pad, qrPx, qrPx);
+  ctx.drawImage(qrImg, pad, qrY, qrPx, qrPx);
 
-  // Text area — right of QR
-  const textX = pad + qrPx + 2.5 * MM;
+  // Text column starts right of QR
+  const textX    = pad + qrPx + 2 * MM;
   const textMaxW = W - textX - pad;
   const textAreaH = H - 2 * pad;
+
+  // Helper: wrap text to at most maxLines lines, returns array of lines
+  const wrapText = (text: string, font: string, maxW: number, maxLines: number): string[] => {
+    ctx.font = font;
+    if (ctx.measureText(text).width <= maxW) return [text];
+    const words = text.split(" ");
+    const lines: string[] = [];
+    let cur = "";
+    for (const word of words) {
+      const test = cur ? `${cur} ${word}` : word;
+      if (ctx.measureText(test).width > maxW) {
+        if (cur) lines.push(cur);
+        cur = word;
+        if (lines.length >= maxLines - 1) { cur = truncate(cur + (words.slice(words.indexOf(word) + 1).length ? " " + words.slice(words.indexOf(word) + 1).join(" ") : ""), font, maxW); break; }
+      } else { cur = test; }
+    }
+    if (cur) lines.push(cur);
+    return lines.slice(0, maxLines);
+  };
 
   const truncate = (text: string, font: string, maxW: number) => {
     ctx.font = font;
@@ -81,42 +104,73 @@ async function renderLabelCanvas(
     return t + "…";
   };
 
-  // Font sizes in POINTS (will be multiplied by PT to get canvas pixels)
-  // Scale gently for larger labels
-  const sc = Math.max(1, size.h / 50);
-  const shopPx  = Math.round(7.5  * sc * PT);
-  const namePx  = Math.round(11   * sc * PT);
-  const catPx   = Math.round(7.5  * sc * PT);
-  const codePx  = Math.round(7.5  * sc * PT);
-  const pricePx = Math.round(16   * sc * PT);
-  const lineGap = Math.round(2.5  * sc * MM);
+  // Font sizes in PT, converted to canvas pixels via PT multiplier
+  // Use label height as baseline (30mm label → sc=1, 50mm → sc=1.4, 75mm → sc=2)
+  const sc = Math.max(1, size.h / 30);
+  const shopPt  = 7   * sc;
+  const namePt  = 9   * sc;
+  const catPt   = 6.5 * sc;
+  const codePt  = 6.5 * sc;
+  const pricePt = 13  * sc;
+  const gap = 1.8 * sc * MM;
+
+  const shopPx  = Math.round(shopPt  * PT);
+  const namePx  = Math.round(namePt  * PT);
+  const catPx   = Math.round(catPt   * PT);
+  const codePx  = Math.round(codePt  * PT);
+  const pricePx = Math.round(pricePt * PT);
 
   const hasCategory = !!product.category?.name;
-  const blockH = shopPx + lineGap + namePx + lineGap
-    + (hasCategory ? catPx + lineGap : 0)
-    + codePx + lineGap + pricePx;
 
-  // Vertically centre the text block
+  // Wrap product name to 2 lines if needed
+  const nameFont = `bold ${namePx}px Arial`;
+  const nameLines = wrapText(product.name, nameFont, textMaxW, 2);
+
+  // Calculate total text block height
+  const blockH = shopPx + gap
+    + namePx * nameLines.length + (nameLines.length - 1) * gap * 0.5 + gap
+    + (hasCategory ? catPx + gap : 0)
+    + codePx + gap
+    + pricePx;
+
+  // Vertically center text block
   let y = pad + Math.max(0, (textAreaH - blockH) / 2);
 
   ctx.fillStyle = "#000";
 
+  // Shop name
   ctx.font = `bold ${shopPx}px Arial`;
-  y += shopPx; ctx.fillText("Anu Fashions", textX, y); y += lineGap;
+  y += shopPx;
+  ctx.fillText(truncate("Anu Fashions", `bold ${shopPx}px Arial`, textMaxW), textX, y);
+  y += gap;
 
-  ctx.font = `bold ${namePx}px Arial`;
-  y += namePx; ctx.fillText(truncate(product.name, `bold ${namePx}px Arial`, textMaxW), textX, y); y += lineGap;
+  // Product name (wrapped)
+  ctx.font = nameFont;
+  for (const line of nameLines) {
+    y += namePx;
+    ctx.fillText(line, textX, y);
+    y += (nameLines.length > 1 ? gap * 0.5 : 0);
+  }
+  y += gap;
 
+  // Category
   if (hasCategory) {
     ctx.font = `bold ${catPx}px Arial`;
-    y += catPx; ctx.fillText(product.category!.name, textX, y); y += lineGap;
+    y += catPx;
+    ctx.fillText(truncate(product.category!.name, `bold ${catPx}px Arial`, textMaxW), textX, y);
+    y += gap;
   }
 
+  // Code
   ctx.font = `bold ${codePx}px monospace`;
-  y += codePx; ctx.fillText(truncate(displayCode(product.code), `bold ${codePx}px monospace`, textMaxW), textX, y); y += lineGap;
+  y += codePx;
+  ctx.fillText(truncate(displayCode(product.code), `bold ${codePx}px monospace`, textMaxW), textX, y);
+  y += gap;
 
+  // Price
   ctx.font = `bold ${pricePx}px Arial`;
-  y += pricePx; ctx.fillText(inr(product.sellingPrice), textX, y);
+  y += pricePx;
+  ctx.fillText(inr(product.sellingPrice), textX, y);
 
   return canvas;
 }
