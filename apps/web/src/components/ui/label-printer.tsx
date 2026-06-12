@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Settings2, Download, FileText, LayoutTemplate, RotateCcw } from "lucide-react";
+import { Settings2, Download, FileText, LayoutTemplate, RotateCcw, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Drawer } from "@/components/ui/drawer";
+import { TwoPane } from "@/components/ui/two-pane";
 import { Modal } from "@/components/ui/modal";
 import { inr } from "@/lib/utils";
 
@@ -312,256 +312,178 @@ function QrRow({ cfg, onChange, xMax, yMax }: { cfg: QrCfg; onChange: (c: Partia
   );
 }
 
-// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
-type Props = { products: Product[] };
-
-export function LabelPrinter({ products }: Props) {
+// ── PER-ITEM LABEL PRINTER ────────────────────────────────────────────────────
+// One button per stock row. Opens a TwoPane: left = layout editor, right = preview + download.
+export function LabelPrinterItem({ product }: { product: Product }) {
   const [open, setOpen]             = useState(false);
   const [editLayout, setEditLayout] = useState(false);
-  const [copies, setCopies]         = useState<Record<string, number>>({});
+  const [count, setCount]           = useState(product.quantity || 1);
   const [labelSize, setLabelSize]   = useState<LabelSize>(DEFAULT_SIZE);
   const [customW, setCustomW]       = useState(String(DEFAULT_SIZE.w));
   const [customH, setCustomH]       = useState(String(DEFAULT_SIZE.h));
   const [showCustom, setShowCustom] = useState(false);
   const [layout, setLayout]         = useState<LabelLayout>(() => loadLayout(DEFAULT_SIZE));
-  const [qrMap, setQrMap]           = useState<Record<string, string>>({});
-  const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
-  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
-  const [pdfLoadingAll, setPdfLoadingAll] = useState(false);
+  const [qr, setQr]                 = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
 
-  // Save layout whenever it changes (debounced via useCallback + setState)
   useEffect(() => { saveLayout(labelSize, layout); }, [layout, labelSize]);
 
-  // When label size changes, load that size's saved layout
   const changeSize = useCallback((s: LabelSize) => {
-    setLabelSize(s);
-    setCustomW(String(s.w)); setCustomH(String(s.h));
+    setLabelSize(s); setCustomW(String(s.w)); setCustomH(String(s.h));
     setLayout(loadLayout(s));
   }, []);
 
-  const patchLayout = useCallback((patch: Partial<LabelLayout>) =>
-    setLayout((prev) => ({ ...prev, ...patch })), []);
-
   const patchField = useCallback((field: keyof Omit<LabelLayout,"qr">, patch: Partial<FieldCfg>) =>
     setLayout((prev) => ({ ...prev, [field]: { ...prev[field], ...patch } })), []);
-
   const patchQr = useCallback((patch: Partial<QrCfg>) =>
     setLayout((prev) => ({ ...prev, qr: { ...prev.qr, ...patch } })), []);
+  const resetLayout = () => { const d = defaultLayout(labelSize); setLayout(d); saveLayout(labelSize, d); };
 
-  const resetLayout = () => {
-    const d = defaultLayout(labelSize);
-    setLayout(d);
-    saveLayout(labelSize, d);
-  };
-
-  const openDrawer = () => {
-    const d: Record<string, number> = {};
-    products.forEach((p) => { d[p.id] = p.quantity || 1; });
-    setCopies(d);
+  const openPane = async () => {
+    // Pre-generate QR when opening
+    const data = `${displayCode(product.code)} | ${product.name} | ${inr(product.sellingPrice)}`;
+    const url = await QRCode.toDataURL(data, { width: 200, margin: 1, color: { dark: "#000", light: "#fff" } });
+    setQr(url);
+    setCount(product.quantity || 1);
     setOpen(true);
   };
 
-  const setCopy = (id: string, val: number) =>
-    setCopies((prev) => ({ ...prev, [id]: Math.max(0, val) }));
-
-  const generateQR = async (product: Product) => {
-    if (qrMap[product.id]) return qrMap[product.id];
-    const data = `${displayCode(product.code)} | ${product.name} | ${inr(product.sellingPrice)}`;
-    const url = await QRCode.toDataURL(data, { width: 200, margin: 1, color: { dark: "#000", light: "#fff" } });
-    setQrMap((prev) => ({ ...prev, [product.id]: url }));
-    return url;
-  };
-
-  const downloadPDFOne = async (product: Product) => {
-    setPdfLoadingId(product.id);
+  const downloadPDF = async () => {
+    setPdfLoading(true);
     try {
-      const qr = await generateQR(product);
-      const blob = await generateLabelPDF([{ product, count: copies[product.id] ?? 1, qr }], labelSize, layout);
+      const blob = await generateLabelPDF([{ product, count, qr }], labelSize, layout);
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = `${safeName(product.name)}-labels.pdf`; a.click();
+      const a = document.createElement("a"); a.href = url;
+      a.download = `${safeName(product.name)}-labels.pdf`; a.click();
       URL.revokeObjectURL(url);
-    } finally { setPdfLoadingId(null); }
+    } finally { setPdfLoading(false); }
   };
 
-  const downloadPDFAll = async () => {
-    setPdfLoadingAll(true);
-    try {
-      const items = await Promise.all(
-        products.filter((p) => (copies[p.id] ?? 1) > 0)
-          .map(async (p) => ({ product: p, count: copies[p.id] ?? 1, qr: await generateQR(p) }))
-      );
-      const blob = await generateLabelPDF(items, labelSize, layout);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = "anu-fashions-all-labels.pdf"; a.click();
-      URL.revokeObjectURL(url);
-    } finally { setPdfLoadingAll(false); }
-  };
+  const leftPane = (
+    <div className="space-y-4">
+      {/* Size selector */}
+      <div className="bg-brand-50 rounded-xl px-3 py-2.5 space-y-2">
+        <p className="text-xs font-bold text-brand-700 uppercase tracking-wide">Label Size — Sezink Josh</p>
+        <div className="flex flex-wrap gap-1.5">
+          {LABEL_PRESETS.map((p) => (
+            <button key={p.label} onClick={() => changeSize(p)}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition leading-tight ${
+                labelSize.w === p.w && labelSize.h === p.h
+                  ? "bg-brand-700 text-white" : "bg-white text-brand-700 border border-brand-200 hover:border-brand-400"
+              }`}>{p.label}</button>
+          ))}
+        </div>
+        <button onClick={() => setShowCustom((v) => !v)} className="text-xs text-brand-600 flex items-center gap-1">
+          <Settings2 className="h-3 w-3" /> Custom size
+        </button>
+        {showCustom && (
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-brand-100">
+            <span className="text-xs text-slate-500">W mm:</span>
+            <input type="number" value={customW} onChange={(e) => setCustomW(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
+            <span className="text-xs text-slate-500">H mm:</span>
+            <input type="number" value={customH} onChange={(e) => setCustomH(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
+            <button onClick={() => { const w=Number(customW),h=Number(customH); if(w>0&&h>0) changeSize({w,h,label:`${w}×${h}mm`}); }}
+              className="rounded-lg bg-brand-700 text-white px-3 py-1 text-xs font-semibold">Apply</button>
+          </div>
+        )}
+        <p className="text-xs text-slate-500">Selected: <span className="font-semibold text-brand-700">{labelSize.w}×{labelSize.h}mm</span></p>
+      </div>
 
-  const previewOne = async (product: Product) => { await generateQR(product); setPreviewProduct(product); };
+      {/* Count */}
+      <div className="bg-brand-50 rounded-xl px-3 py-3 space-y-1.5">
+        <p className="text-xs font-bold text-brand-700 uppercase tracking-wide">Number of Labels</p>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCount(c => Math.max(0, c - 1))} className="w-9 h-9 rounded-xl bg-white border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100">−</button>
+          <input type="number" value={count} min={0} max={product.quantity}
+            onChange={(e) => setCount(Math.min(Number(e.target.value), product.quantity))}
+            className="flex-1 text-center text-base font-bold rounded-xl border border-brand-200 py-2 focus:border-brand-500 focus:outline-none" />
+          <button onClick={() => setCount(c => Math.min(c + 1, product.quantity))} className="w-9 h-9 rounded-xl bg-white border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100">+</button>
+          <span className="text-xs text-slate-400 shrink-0">/ {product.quantity}</span>
+        </div>
+      </div>
 
-  const totalLabels  = products.reduce((s, p) => s + (copies[p.id] ?? p.quantity ?? 1), 0);
-  const activeItems  = products.filter((p) => (copies[p.id] ?? p.quantity ?? 1) > 0).length;
+      {/* Layout editor toggle */}
+      <button onClick={() => setEditLayout((v) => !v)}
+        className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition ${
+          editLayout ? "bg-brand-700 text-white border-brand-700" : "bg-white text-brand-700 border-brand-200 hover:bg-brand-50"
+        }`}>
+        <LayoutTemplate className="h-3.5 w-3.5" />
+        {editLayout ? "✓ Editing Layout — click to close" : "Edit Layout / లేఅవుట్ సవరించు"}
+      </button>
 
-  // Pick first product with a QR for the layout editor preview
-  const previewSample = products[0] ?? null;
+      {editLayout && (
+        <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
+          <div className="space-y-2">
+            <QrRow cfg={layout.qr} onChange={patchQr} xMax={labelSize.w} yMax={labelSize.h} />
+            <FieldRow label="Shop Name" cfg={layout.shopName} onChange={(p) => patchField("shopName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
+            <FieldRow label="Item Name" cfg={layout.itemName} onChange={(p) => patchField("itemName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
+            <FieldRow label="Item Code" cfg={layout.itemCode} onChange={(p) => patchField("itemCode", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
+          </div>
+          <button onClick={resetLayout} className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-terra-600 border border-terra-200 rounded-xl hover:bg-terra-50 transition">
+            <RotateCcw className="h-3 w-3" /> Reset to default
+          </button>
+        </div>
+      )}
+
+      {/* Download button */}
+      <Button className="w-full py-3" onClick={downloadPDF} disabled={pdfLoading || count === 0}>
+        <Download className="mr-2 h-4 w-4" />
+        {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
+      </Button>
+    </div>
+  );
+
+  const rightPane = (
+    <div className="space-y-3">
+      {/* Sticky preview */}
+      <div className="sticky top-0 z-10 bg-brand-50/95 backdrop-blur-sm rounded-xl pb-2 pt-1">
+        <p className="text-xs font-bold text-brand-700 uppercase tracking-wide mb-2 px-1">Live Preview</p>
+        {qr ? (
+          <div className="flex justify-center">
+            <CanvasPreview product={product} qr={qr} size={labelSize} layout={layout} />
+          </div>
+        ) : (
+          <div className="h-32 bg-brand-100 rounded-xl animate-pulse" />
+        )}
+        <p className="text-[10px] text-slate-400 text-center mt-1">Updates as you adjust layout ↓</p>
+      </div>
+
+      {/* Item info */}
+      <div className="bg-white rounded-xl p-4 space-y-1 shadow-sm">
+        <p className="font-bold text-brand-900">{product.name}</p>
+        <p className="text-xs text-slate-500">{displayCode(product.code)} · {product.category?.name ?? "—"}</p>
+        <p className="text-xs text-slate-500">{inr(product.sellingPrice)} · Stock: {product.quantity}</p>
+      </div>
+
+      <p className="text-xs text-slate-400 text-center">Tap Download PDF to save {count} label{count !== 1 ? "s" : ""}</p>
+    </div>
+  );
 
   return (
     <>
-      <Button variant="secondary" onClick={openDrawer}>
-        <FileText className="mr-2 h-4 w-4" />
-        Labels
-      </Button>
+      <button
+        onClick={openPane}
+        title="Label"
+        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-brand-600 bg-brand-50 border border-brand-200 rounded-lg hover:bg-brand-100 transition"
+      >
+        <Tag className="h-3 w-3" />
+        Label
+      </button>
 
-      <Drawer open={open} onClose={() => { setOpen(false); setEditLayout(false); }} title={editLayout ? "Edit Layout / లేఅవుట్ సవరించు" : "Labels / లేబుల్లు"}>
-        <div className="space-y-4">
-
-          {/* ── Size selector ── */}
-          <div className="bg-brand-50 rounded-xl px-3 py-2.5 space-y-2">
-            <p className="text-xs font-bold text-brand-700 uppercase tracking-wide">Label Size — Sezink Josh</p>
-            <div className="flex flex-wrap gap-1.5">
-              {LABEL_PRESETS.map((p) => (
-                <button key={p.label} onClick={() => changeSize(p)}
-                  className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition leading-tight ${
-                    labelSize.w === p.w && labelSize.h === p.h
-                      ? "bg-brand-700 text-white" : "bg-white text-brand-700 border border-brand-200 hover:border-brand-400"
-                  }`}>{p.label}</button>
-              ))}
-            </div>
-            <button onClick={() => setShowCustom((v) => !v)} className="text-xs text-brand-600 flex items-center gap-1">
-              <Settings2 className="h-3 w-3" /> Custom size
-            </button>
-            {showCustom && (
-              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-brand-100">
-                <span className="text-xs text-slate-500">W mm:</span>
-                <input type="number" value={customW} onChange={(e) => setCustomW(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
-                <span className="text-xs text-slate-500">H mm:</span>
-                <input type="number" value={customH} onChange={(e) => setCustomH(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
-                <button onClick={() => { const w=Number(customW),h=Number(customH); if(w>0&&h>0) changeSize({w,h,label:`${w}×${h}mm`}); }}
-                  className="rounded-lg bg-brand-700 text-white px-3 py-1 text-xs font-semibold">Apply</button>
-              </div>
-            )}
-            <p className="text-xs text-slate-500">Selected: <span className="font-semibold text-brand-700">{labelSize.w}×{labelSize.h}mm</span></p>
-          </div>
-
-          {/* ── Edit Layout toggle ── */}
-          <button
-            onClick={() => setEditLayout((v) => !v)}
-            className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition ${
-              editLayout
-                ? "bg-brand-700 text-white border-brand-700"
-                : "bg-white text-brand-700 border-brand-200 hover:bg-brand-50"
-            }`}
-          >
-            <LayoutTemplate className="h-3.5 w-3.5" />
-            {editLayout ? "✓ Editing Layout — click to close" : "Edit Layout / లేఅవుట్ సవరించు"}
-          </button>
-
-          {/* ── LAYOUT EDITOR ── */}
-          {editLayout && (
-            <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
-
-              {/* Live preview — sticky so it stays visible while scrolling sliders */}
-              <div className="sticky top-0 z-10 bg-brand-50/95 backdrop-blur-sm rounded-xl pb-2 pt-1">
-                {previewSample && qrMap[previewSample.id] ? (
-                  <div className="flex justify-center">
-                    <CanvasPreview product={previewSample} qr={qrMap[previewSample.id]} size={labelSize} layout={layout} />
-                  </div>
-                ) : previewSample ? (
-                  <button onClick={() => generateQR(previewSample)} className="w-full text-xs text-brand-600 underline text-center py-2">
-                    Load preview
-                  </button>
-                ) : null}
-                <p className="text-[10px] text-slate-400 text-center mt-1">Preview updates as you adjust ↓</p>
-              </div>
-
-              {/* Field controls */}
-              <div className="space-y-2">
-                <QrRow cfg={layout.qr} onChange={patchQr} xMax={labelSize.w} yMax={labelSize.h} />
-                <FieldRow label="Shop Name" cfg={layout.shopName} onChange={(p) => patchField("shopName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
-                <FieldRow label="Item Name" cfg={layout.itemName} onChange={(p) => patchField("itemName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
-                <FieldRow label="Item Code" cfg={layout.itemCode} onChange={(p) => patchField("itemCode", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
-              </div>
-
-              {/* Reset */}
-              <button
-                onClick={resetLayout}
-                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-terra-600 border border-terra-200 rounded-xl hover:bg-terra-50 transition"
-              >
-                <RotateCcw className="h-3 w-3" /> Reset to default (wdfx template)
-              </button>
-            </div>
-          )}
-
-          {/* ── Item list ── */}
-          {!editLayout && (
-            <div className="space-y-2">
-              {products.map((p) => {
-                const count = copies[p.id] ?? p.quantity ?? 1;
-                return (
-                  <div key={p.id} className="rounded-xl border border-brand-100 bg-white p-3 space-y-2.5">
-                    <div>
-                      <p className="text-sm font-semibold text-brand-900 leading-tight">{p.name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{displayCode(p.code)} · {p.category?.name ?? "—"} · {inr(p.sellingPrice)}</p>
-                      <p className="text-xs text-brand-600 font-medium">Stock: {p.quantity}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 shrink-0">Labels:</span>
-                      <button onClick={() => setCopy(p.id, count - 1)} className="w-7 h-7 rounded-lg bg-brand-50 border border-brand-200 text-brand-700 font-bold flex items-center justify-center hover:bg-brand-100">−</button>
-                      <input type="number" value={count} min={0} max={p.quantity}
-                        onChange={(e) => setCopy(p.id, Math.min(Number(e.target.value), p.quantity))}
-                        className="w-14 text-center text-sm font-bold rounded-lg border border-brand-200 py-1 focus:border-brand-500 focus:outline-none" />
-                      <button onClick={() => setCopy(p.id, Math.min(count + 1, p.quantity))} className="w-7 h-7 rounded-lg bg-brand-50 border border-brand-200 text-brand-700 font-bold flex items-center justify-center hover:bg-brand-100">+</button>
-                      <span className="text-xs text-slate-400">/ {p.quantity}</span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5">
-                      <button onClick={() => downloadPDFOne(p)} disabled={count === 0 || pdfLoadingId === p.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand-700 rounded-lg hover:bg-brand-800 disabled:opacity-40 transition">
-                        <FileText className="h-3 w-3" />
-                        {pdfLoadingId === p.id ? "Building…" : `PDF (${count})`}
-                      </button>
-                      <button onClick={() => previewOne(p)} className="px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 transition">Preview</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* ── Footer ── */}
-          {!editLayout && (
-            <div className="sticky bottom-0 bg-white border-t border-brand-100 pt-3 pb-1 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>{activeItems} items · {totalLabels} total labels</span>
-                <button onClick={() => { const d: Record<string,number>={};products.forEach((p)=>{d[p.id]=p.quantity||1;});setCopies(d);}} className="text-brand-600 underline">Reset to stock qty</button>
-              </div>
-              <Button className="w-full" onClick={downloadPDFAll} disabled={pdfLoadingAll || totalLabels === 0}>
-                <Download className="mr-2 h-4 w-4" />
-                {pdfLoadingAll ? "Building PDF…" : `Download All (${totalLabels} labels) as PDF`}
-              </Button>
-            </div>
-          )}
-        </div>
-      </Drawer>
-
-      {/* Preview modal */}
-      <Modal open={!!previewProduct} onClose={() => setPreviewProduct(null)} title="Label Preview" size="sm">
-        {previewProduct && (
-          <div className="space-y-4">
-            <p className="text-xs text-slate-500 text-center">{labelSize.w}×{labelSize.h}mm — {copies[previewProduct.id] ?? 1} label(s)</p>
-            <div className="flex justify-center">
-              <CanvasPreview product={previewProduct} qr={qrMap[previewProduct.id] ?? ""} size={labelSize} layout={layout} />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="secondary" className="flex-1" onClick={() => setPreviewProduct(null)}>Close</Button>
-              <Button className="flex-1" onClick={() => { downloadPDFOne(previewProduct); setPreviewProduct(null); }}>
-                <Download className="mr-2 h-3 w-3" />PDF
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      <TwoPane
+        open={open}
+        onClose={() => { setOpen(false); setEditLayout(false); }}
+        title={`Label — ${product.name}`}
+        leftLabel="Layout & Count"
+        rightLabel="Preview"
+        leftPane={leftPane}
+        rightPane={rightPane}
+      />
     </>
   );
+}
+
+// Keep old export for any legacy usage (no-op, just redirects)
+export function LabelPrinter({ products }: { products: Product[] }) {
+  return null;
 }

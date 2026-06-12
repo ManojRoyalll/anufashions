@@ -18,7 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { Textarea } from "@/components/ui/textarea";
-import { LabelPrinter } from "@/components/ui/label-printer";
+import { LabelPrinterItem } from "@/components/ui/label-printer";
 
 const schema = z.object({
   supplierId: z.string().optional(),
@@ -172,6 +172,7 @@ export default function ProductsPage() {
   const lowCount = products.filter((p) => p.stockStatus === "LOW_STOCK").length;
   const outCount = products.filter((p) => p.stockStatus === "OUT_OF_STOCK").length;
   const inventoryValue = products.reduce((s, p) => s + p.purchasePrice * p.quantity, 0);
+  const totalPieces = products.reduce((s, p) => s + p.quantity, 0);
 
   const columns = [
     { key: "code", label: "Code", sortable: true, render: (p: Product) => (
@@ -187,7 +188,8 @@ export default function ProductsPage() {
     { key: "discountLimit", label: t.maxDiscount, render: (p: Product) => p.discountLimit != null ? `${p.discountLimit}%` : "-" },
     { key: "stockStatus", label: t.stock, render: (p: Product) => stockBadge(p.stockStatus) },
     { key: "actions", label: "", render: (p: Product) => (
-      <div className="flex gap-2">
+      <div className="flex gap-1.5">
+        <LabelPrinterItem product={p} />
         <Button size="sm" variant="secondary" onClick={() => openEdit(p)}><Pencil className="h-3 w-3" /></Button>
         <Button size="sm" variant="accent" onClick={() => remove(p.id)}><Trash2 className="h-3 w-3" /></Button>
       </div>
@@ -201,17 +203,20 @@ export default function ProductsPage() {
         subtitle={`${products.length} ${t.items}`}
         actions={
           <div className="flex gap-2">
-            <LabelPrinter products={products} />
             <Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />{t.addItem}</Button>
           </div>
         }
       />
 
       {/* ── Stats cards ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="rounded-2xl bg-white shadow-sm border border-brand-100 p-4">
           <p className="text-xs text-slate-500 font-medium">Total Items</p>
           <p className="text-2xl font-bold text-brand-900 mt-1">{products.length}</p>
+        </div>
+        <div className="rounded-2xl bg-white shadow-sm border border-brand-100 p-4">
+          <p className="text-xs text-slate-500 font-medium">Total Pieces</p>
+          <p className="text-2xl font-bold text-brand-700 mt-1">{totalPieces.toLocaleString("en-IN")}</p>
         </div>
         <div className="rounded-2xl bg-white shadow-sm border border-brand-100 p-4">
           <p className="text-xs text-slate-500 font-medium">Inventory Value</p>

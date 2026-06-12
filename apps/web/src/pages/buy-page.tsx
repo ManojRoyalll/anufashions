@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Drawer } from "@/components/ui/drawer";
+import { TwoPane } from "@/components/ui/two-pane";
 import { inr } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -302,167 +303,211 @@ export default function BuyPage() {
         </CardContent>
       </Card>
 
-      {/* ── ADD BILL DRAWER ── */}
-      <Drawer open={addDrawerOpen} onClose={() => {
-        setAddDrawerOpen(false);
-        setItems([emptyItem()]);
-        setInvoiceNo(""); setInvoiceBillAmount(""); setTransportCost(""); setBillPhoto(undefined);
-        setSelectedSupplier(null); setNewSupplierName(""); setNewSupplierPhone("");
-        setDate(new Date().toISOString().slice(0, 10));
-        setShowInvoiceDetails(false);
-      }} title="Add Bill / బిల్లు చేర్చు">
-        <div className="space-y-5">
-          {/* ── SUPPLIER ── */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Supplier / సరఫరాదారు</p>
-            {selectedSupplier ? (
-              <div className="flex items-center justify-between bg-brand-50 rounded-xl px-4 py-3">
-                <div>
-                  <p className="font-bold text-brand-900">{selectedSupplier.name}</p>
-                  {selectedSupplier.phone && <p className="text-xs text-slate-500">{selectedSupplier.phone}</p>}
-                </div>
-                <button onClick={() => { setSelectedSupplier(null); setNewSupplierName(""); setNewSupplierPhone(""); }} className="text-terra-500 text-sm font-medium">Change</button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="relative">
-                  <Input placeholder="Search existing supplier..." value={supplierQuery}
-                    onChange={(e) => { setSupplierQuery(e.target.value); setShowSupplierDrop(true); }}
-                    onFocus={() => setShowSupplierDrop(true)} autoComplete="off" />
-                  {showSupplierDrop && supplierMatches.length > 0 && (
-                    <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-brand-200 rounded-xl shadow-premium overflow-hidden">
-                      {supplierMatches.map((s) => (
-                        <button key={s.id} onClick={() => selectSupplier(s)} className="w-full text-left px-4 py-2.5 hover:bg-brand-50 border-b border-brand-50 last:border-0">
-                          <p className="font-semibold text-sm text-brand-900">{s.name}</p>
-                          {s.phone && <p className="text-xs text-slate-500">{s.phone}</p>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+      {/* ── ADD BILL TWO-PANE ── */}
+      <TwoPane
+        open={addDrawerOpen}
+        onClose={() => {
+          setAddDrawerOpen(false);
+          setItems([emptyItem()]);
+          setInvoiceNo(""); setInvoiceBillAmount(""); setTransportCost(""); setBillPhoto(undefined);
+          setSelectedSupplier(null); setNewSupplierName(""); setNewSupplierPhone("");
+          setDate(new Date().toISOString().slice(0, 10));
+          setShowInvoiceDetails(false);
+        }}
+        title="Add Bill / బిల్లు చేర్చు"
+        leftLabel="Add Items"
+        rightLabel="Summary"
+        leftPane={
+          <div className="space-y-5">
+            {/* ── SUPPLIER ── */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Supplier / సరఫరాదారు</p>
+              {selectedSupplier ? (
+                <div className="flex items-center justify-between bg-brand-50 rounded-xl px-4 py-3">
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">New Supplier Name *</p>
-                    <Input placeholder="e.g. Franzil" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} autoComplete="off" />
+                    <p className="font-bold text-brand-900">{selectedSupplier.name}</p>
+                    {selectedSupplier.phone && <p className="text-xs text-slate-500">{selectedSupplier.phone}</p>}
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Phone (optional)</p>
-                    <Input placeholder="9876543210" value={newSupplierPhone} onChange={(e) => setNewSupplierPhone(e.target.value)} />
-                  </div>
+                  <button onClick={() => { setSelectedSupplier(null); setNewSupplierName(""); setNewSupplierPhone(""); }} className="text-terra-500 text-sm font-medium">Change</button>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── INVOICE DETAILS ── */}
-          <div>
-            <button type="button" onClick={() => setShowInvoiceDetails((v) => !v)}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-700">
-              {showInvoiceDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              Invoice Details (optional)
-            </button>
-            {showInvoiceDetails && (
-              <div className="mt-3 grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">{t.date}</p>
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">{t.invoiceNo}</p>
-                  <Input placeholder="INV-2026-001" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} autoComplete="off" />
-                </div>
-                <div className="col-span-2 space-y-3">
-                  <div>
-                    <p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹)</p>
-                    <Input type="number" placeholder="Amount on invoice" value={invoiceBillAmount} onChange={(e) => setInvoiceBillAmount(e.target.value)} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-brand-700 mb-1">Transport Cost (₹)</p>
-                    <Input type="number" placeholder="0" value={transportCost} onChange={(e) => setTransportCost(e.target.value)} />
-                  </div>
-                  {(invoiceBillAmount || transportCost) && (
-                    <div className="rounded-xl bg-terra-50 px-4 py-3 text-sm">
-                      <div className="flex justify-between font-bold text-terra-800">
-                        <span>Total Paid</span>
-                        <span>₹{((Number(invoiceBillAmount) || totalInvestment) + (Number(transportCost) || 0)).toLocaleString("en-IN")}</span>
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Input placeholder="Search existing supplier..." value={supplierQuery}
+                      onChange={(e) => { setSupplierQuery(e.target.value); setShowSupplierDrop(true); }}
+                      onFocus={() => setShowSupplierDrop(true)} autoComplete="off" />
+                    {showSupplierDrop && supplierMatches.length > 0 && (
+                      <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-brand-200 rounded-xl shadow-premium overflow-hidden">
+                        {supplierMatches.map((s) => (
+                          <button key={s.id} onClick={() => selectSupplier(s)} className="w-full text-left px-4 py-2.5 hover:bg-brand-50 border-b border-brand-50 last:border-0">
+                            <p className="font-semibold text-sm text-brand-900">{s.name}</p>
+                            {s.phone && <p className="text-xs text-slate-500">{s.phone}</p>}
+                          </button>
+                        ))}
                       </div>
-                    </div>
-                  )}
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs text-slate-500 mb-1">{t.billPhoto}</p>
-                  <ImageUpload value={billPhoto} onChange={setBillPhoto} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── ITEMS ── */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items / వస్తువులు</p>
-            <div className="space-y-3">
-              {items.map((item) => {
-                const buy = Number(item.buyPrice) || 0;
-                const sell = Number(item.sellPrice) || 0;
-                const profit = sell - buy;
-                return (
-                  <div key={item.id} className="bg-brand-50 rounded-xl p-3 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Item Name</p>
-                        <Input placeholder="Saree / item name" value={item.title} onChange={(e) => updateItem(item.id, "title", e.target.value)} autoComplete="off" />
-                      </div>
-                      <div style={{ width: "110px" }}>
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Code</p>
-                        <Input placeholder="SILK-001" value={item.itemCode} onChange={(e) => updateItem(item.id, "itemCode", e.target.value)} autoComplete="off" />
-                      </div>
-                      <button onClick={() => items.length > 1 ? removeItem(item.id) : undefined} className={`mt-5 p-2 rounded-xl ${items.length > 1 ? "text-red-400 hover:bg-red-100" : "text-slate-200"}`}>
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-brand-600 mb-1">Category</p>
-                      <Input placeholder="e.g. Cotton Sarees" value={item.categoryName} onChange={(e) => updateItem(item.id, "categoryName", e.target.value)} autoComplete="off" list={`cats-${item.id}`} />
-                      <datalist id={`cats-${item.id}`}>{existingCategories.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div><p className="text-xs font-semibold text-brand-600 mb-1">Buy ₹</p><Input type="number" placeholder="0" value={item.buyPrice} onChange={(e) => updateItem(item.id, "buyPrice", e.target.value)} /></div>
-                      <div><p className="text-xs font-semibold text-brand-600 mb-1">Sell ₹</p><Input type="number" placeholder="0" value={item.sellPrice} onChange={(e) => updateItem(item.id, "sellPrice", e.target.value)} /></div>
-                      <div><p className="text-xs font-semibold text-brand-600 mb-1">Max Disc %</p><Input type="number" placeholder="0" value={item.maxDiscount} onChange={(e) => updateItem(item.id, "maxDiscount", e.target.value)} /></div>
-                      <div><p className="text-xs font-semibold text-brand-600 mb-1">Qty</p><Input type="number" placeholder="1" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", e.target.value)} /></div>
-                    </div>
-                    {buy > 0 && sell > 0 && (
-                      <p className={`text-xs font-semibold ${profit >= 0 ? "text-brand-600" : "text-terra-500"}`}>
-                        Profit: {inr(profit)} ({buy > 0 ? ((profit / buy) * 100).toFixed(1) : 0}%)
-                      </p>
                     )}
                   </div>
-                );
-              })}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">New Supplier Name *</p>
+                      <Input placeholder="e.g. Franzil" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} autoComplete="off" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Phone (optional)</p>
+                      <Input placeholder="9876543210" value={newSupplierPhone} onChange={(e) => setNewSupplierPhone(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-            <button onClick={() => setItems((prev) => [...prev, emptyItem()])} className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-800 font-medium mt-2">
-              <Plus className="h-4 w-4" /> Add another item
-            </button>
-          </div>
 
-          {/* ── TOTALS ── */}
-          {totalInvestment > 0 && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-brand-50 rounded-xl p-3 text-center"><p className="text-xs text-slate-500">Investment</p><p className="font-bold text-brand-900 mt-0.5">{inr(totalInvestment)}</p></div>
-              <div className="bg-terra-50 rounded-xl p-3 text-center"><p className="text-xs text-slate-500">Revenue</p><p className="font-bold text-terra-700 mt-0.5">{inr(expectedRevenue)}</p></div>
-              <div className="bg-brand-50 rounded-xl p-3 text-center"><p className="text-xs text-slate-500">Profit</p><p className="font-bold text-brand-700 mt-0.5">{inr(expectedRevenue - totalInvestment)}</p></div>
+            {/* ── INVOICE DETAILS ── */}
+            <div>
+              <button type="button" onClick={() => setShowInvoiceDetails((v) => !v)}
+                className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-700">
+                {showInvoiceDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                Invoice Details (optional)
+              </button>
+              {showInvoiceDetails && (
+                <div className="mt-3 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">{t.date}</p>
+                    <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">{t.invoiceNo}</p>
+                    <Input placeholder="INV-2026-001" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} autoComplete="off" />
+                  </div>
+                  <div className="col-span-2 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹)</p>
+                      <Input type="number" placeholder="Amount on invoice" value={invoiceBillAmount} onChange={(e) => setInvoiceBillAmount(e.target.value)} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-brand-700 mb-1">Transport Cost (₹)</p>
+                      <Input type="number" placeholder="0" value={transportCost} onChange={(e) => setTransportCost(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-slate-500 mb-1">{t.billPhoto}</p>
+                    <ImageUpload value={billPhoto} onChange={setBillPhoto} />
+                  </div>
+                </div>
+              )}
             </div>
-          )}
 
-          {validItems.length > 0 && (
-            <Button className="w-full py-4 text-base font-bold" onClick={saveAll} disabled={saving}>
-              {saving ? "Saving..." : `✅ Save ${validItems.length} Item${validItems.length > 1 ? "s" : ""} to Stock`}
+            {/* ── ITEMS ── */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items / వస్తువులు</p>
+              <div className="space-y-3">
+                {items.map((item) => {
+                  const buy = Number(item.buyPrice) || 0;
+                  const sell = Number(item.sellPrice) || 0;
+                  const profit = sell - buy;
+                  return (
+                    <div key={item.id} className="bg-brand-50 rounded-xl p-3 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-brand-600 mb-1">Item Name</p>
+                          <Input placeholder="Saree / item name" value={item.title} onChange={(e) => updateItem(item.id, "title", e.target.value)} autoComplete="off" />
+                        </div>
+                        <div style={{ width: "110px" }}>
+                          <p className="text-xs font-semibold text-brand-600 mb-1">Code</p>
+                          <Input placeholder="SILK-001" value={item.itemCode} onChange={(e) => updateItem(item.id, "itemCode", e.target.value)} autoComplete="off" />
+                        </div>
+                        <button onClick={() => items.length > 1 ? removeItem(item.id) : undefined} className={`mt-5 p-2 rounded-xl ${items.length > 1 ? "text-red-400 hover:bg-red-100" : "text-slate-200"}`}>
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Category</p>
+                        <Input placeholder="e.g. Cotton Sarees" value={item.categoryName} onChange={(e) => updateItem(item.id, "categoryName", e.target.value)} autoComplete="off" list={`cats-${item.id}`} />
+                        <datalist id={`cats-${item.id}`}>{existingCategories.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div><p className="text-xs font-semibold text-brand-600 mb-1">Buy ₹</p><Input type="number" placeholder="0" value={item.buyPrice} onChange={(e) => updateItem(item.id, "buyPrice", e.target.value)} /></div>
+                        <div><p className="text-xs font-semibold text-brand-600 mb-1">Sell ₹</p><Input type="number" placeholder="0" value={item.sellPrice} onChange={(e) => updateItem(item.id, "sellPrice", e.target.value)} /></div>
+                        <div><p className="text-xs font-semibold text-brand-600 mb-1">Max Disc %</p><Input type="number" placeholder="0" value={item.maxDiscount} onChange={(e) => updateItem(item.id, "maxDiscount", e.target.value)} /></div>
+                        <div><p className="text-xs font-semibold text-brand-600 mb-1">Qty</p><Input type="number" placeholder="1" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", e.target.value)} /></div>
+                      </div>
+                      {buy > 0 && sell > 0 && (
+                        <p className={`text-xs font-semibold ${profit >= 0 ? "text-brand-600" : "text-terra-500"}`}>
+                          Profit: {inr(profit)} ({buy > 0 ? ((profit / buy) * 100).toFixed(1) : 0}%)
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <button onClick={() => setItems((prev) => [...prev, emptyItem()])} className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-800 font-medium mt-2">
+                <Plus className="h-4 w-4" /> Add another item
+              </button>
+            </div>
+
+            <Button className="w-full py-3 text-base font-bold" onClick={saveAll} disabled={saving || validItems.length === 0}>
+              {saving ? "Saving..." : validItems.length === 0 ? "Add items to save" : `✅ Save ${validItems.length} Item${validItems.length > 1 ? "s" : ""} to Stock`}
             </Button>
-          )}
-        </div>
-      </Drawer>
+          </div>
+        }
+        rightPane={
+          <div className="space-y-4">
+            {/* Running totals */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <p className="text-xs text-slate-500">Investment</p>
+                <p className="font-bold text-brand-900 mt-0.5 text-sm">{inr(totalInvestment)}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <p className="text-xs text-slate-500">Revenue</p>
+                <p className="font-bold text-terra-700 mt-0.5 text-sm">{inr(expectedRevenue)}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <p className="text-xs text-slate-500">Profit</p>
+                <p className="font-bold text-brand-700 mt-0.5 text-sm">{inr(expectedRevenue - totalInvestment)}</p>
+              </div>
+            </div>
 
-      {/* ── PURCHASE DETAIL DRAWER ── */}
+            {/* Items added so far */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">
+                Items ({validItems.length})
+              </p>
+              {validItems.length === 0 ? (
+                <div className="rounded-xl border-2 border-dashed border-brand-200 p-8 text-center">
+                  <p className="text-sm text-slate-400">No items yet</p>
+                  <p className="text-xs text-slate-300 mt-1">Fill in the form on the left ←</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {validItems.map((item, i) => {
+                    const buy = Number(item.buyPrice);
+                    const sell = Number(item.sellPrice);
+                    const qty = Number(item.quantity);
+                    return (
+                      <div key={item.id} className="bg-white rounded-xl px-3 py-2.5 shadow-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-brand-900 truncate">{item.title}</p>
+                            {item.categoryName && <p className="text-xs text-slate-500">{item.categoryName}</p>}
+                          </div>
+                          <span className="text-xs font-bold text-brand-700 shrink-0">×{qty}</span>
+                        </div>
+                        <div className="flex gap-3 mt-1 text-xs text-slate-500">
+                          <span>Buy {inr(buy)}</span>
+                          <span>Sell {inr(sell)}</span>
+                          <span className="text-brand-600 font-semibold">Profit {inr((sell - buy) * qty)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        }
+      />
+
+      {/* ── PURCHASE DETAIL DRAWER (read-only, backdrop close is fine) ── */}
       <Drawer
         open={!!detailRecord}
         onClose={() => { setDetailRecord(null); setEditMode(false); }}
@@ -470,105 +515,53 @@ export default function BuyPage() {
       >
         {detailRecord && !editMode && (
           <>
-            {/* View mode header actions */}
             <div className="flex gap-2">
               <Button variant="secondary" className="flex-1" onClick={() => openEditRecord(detailRecord)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit Invoice
               </Button>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-brand-50 rounded-xl p-3">
-                <p className="text-xs text-slate-500">Supplier</p>
-                <p className="font-semibold text-brand-900">{detailRecord.supplier?.name ?? "—"}</p>
-                {detailRecord.supplier?.phone && <p className="text-xs text-slate-500">{detailRecord.supplier.phone}</p>}
-              </div>
-              <div className="bg-brand-50 rounded-xl p-3">
-                <p className="text-xs text-slate-500">Date</p>
-                <p className="font-semibold text-brand-900">{new Date(detailRecord.purchaseDate).toLocaleDateString("en-IN", { dateStyle: "long" })}</p>
-              </div>
-              <div className="bg-brand-50 rounded-xl p-3">
-                <p className="text-xs text-slate-500">Invoice No</p>
-                <p className="font-semibold text-brand-900">{detailRecord.invoiceNo || "—"}</p>
-              </div>
-              <div className="bg-terra-50 rounded-xl p-3">
-                <p className="text-xs text-slate-500">Total Amount</p>
-                <p className="font-bold text-xl text-terra-700">{inr(Number(detailRecord.totalAmount))}</p>
-              </div>
-              {detailRecord.invoiceBillAmount && (
-                <div className="bg-brand-50 rounded-xl p-3">
-                  <p className="text-xs text-slate-500">Invoice Bill Amount</p>
-                  <p className="font-semibold text-brand-900">{inr(Number(detailRecord.invoiceBillAmount))}</p>
-                </div>
-              )}
-              {detailRecord.transportCost > 0 && (
-                <div className="bg-brand-50 rounded-xl p-3">
-                  <p className="text-xs text-slate-500">Transport Cost</p>
-                  <p className="font-semibold text-brand-900">{inr(Number(detailRecord.transportCost))}</p>
-                </div>
-              )}
+              <div className="bg-brand-50 rounded-xl p-3"><p className="text-xs text-slate-500">Supplier</p><p className="font-semibold text-brand-900">{detailRecord.supplier?.name ?? "—"}</p>{detailRecord.supplier?.phone && <p className="text-xs text-slate-500">{detailRecord.supplier.phone}</p>}</div>
+              <div className="bg-brand-50 rounded-xl p-3"><p className="text-xs text-slate-500">Date</p><p className="font-semibold text-brand-900">{new Date(detailRecord.purchaseDate).toLocaleDateString("en-IN", { dateStyle: "long" })}</p></div>
+              <div className="bg-brand-50 rounded-xl p-3"><p className="text-xs text-slate-500">Invoice No</p><p className="font-semibold text-brand-900">{detailRecord.invoiceNo || "—"}</p></div>
+              <div className="bg-terra-50 rounded-xl p-3"><p className="text-xs text-slate-500">Total Amount</p><p className="font-bold text-xl text-terra-700">{inr(Number(detailRecord.totalAmount))}</p></div>
+              {detailRecord.invoiceBillAmount && <div className="bg-brand-50 rounded-xl p-3"><p className="text-xs text-slate-500">Invoice Bill Amount</p><p className="font-semibold text-brand-900">{inr(Number(detailRecord.invoiceBillAmount))}</p></div>}
+              {detailRecord.transportCost > 0 && <div className="bg-brand-50 rounded-xl p-3"><p className="text-xs text-slate-500">Transport Cost</p><p className="font-semibold text-brand-900">{inr(Number(detailRecord.transportCost))}</p></div>}
             </div>
-
             {detailRecord.items?.length > 0 && (
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items ({detailRecord.items.length})</p>
                 <div className="space-y-1.5">
                   {detailRecord.items.map((item: any, i: number) => (
                     <div key={item.id ?? i} className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-brand-900 truncate">{item.product?.name ?? "—"}</p>
-                        <p className="text-xs text-slate-500">{item.product?.code}</p>
-                      </div>
-                      <div className="text-right shrink-0 ml-3">
-                        <p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.costPrice))}</p>
-                        <p className="text-xs text-brand-700 font-bold">{inr(Number(item.lineTotal ?? Number(item.costPrice) * item.quantity))}</p>
-                      </div>
+                      <div className="flex-1 min-w-0"><p className="font-semibold text-sm text-brand-900 truncate">{item.product?.name ?? "—"}</p><p className="text-xs text-slate-500">{item.product?.code}</p></div>
+                      <div className="text-right shrink-0 ml-3"><p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.costPrice))}</p><p className="text-xs text-brand-700 font-bold">{inr(Number(item.lineTotal ?? Number(item.costPrice) * item.quantity))}</p></div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
-            {detailRecord.billPhoto && (
+            {detailRecord.billPhoto ? (
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Bill Photo / బిల్లు ఫోటో</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Bill Photo</p>
                 <a href={detailRecord.billPhoto} target="_blank" rel="noopener noreferrer">
                   <img src={detailRecord.billPhoto} alt="Bill" className="w-full object-contain rounded-xl border border-brand-200 cursor-pointer hover:opacity-90" />
                 </a>
-                <p className="text-xs text-slate-400 mt-1 text-center">Tap to open full size</p>
               </div>
-            )}
-            {!detailRecord.billPhoto && (
-              <div className="rounded-xl border-2 border-dashed border-brand-200 p-4 text-center">
-                <p className="text-sm text-slate-400">No bill photo — click Edit Invoice to add one</p>
-              </div>
+            ) : (
+              <div className="rounded-xl border-2 border-dashed border-brand-200 p-4 text-center"><p className="text-sm text-slate-400">No bill photo — click Edit Invoice to add one</p></div>
             )}
           </>
         )}
-
         {detailRecord && editMode && (
           <div className="space-y-4">
-            <div>
-              <p className="text-xs font-semibold text-brand-700 mb-1">Invoice No</p>
-              <Input value={editInvoiceNo} onChange={(e) => setEditInvoiceNo(e.target.value)} placeholder="INV-2026-001" autoComplete="off" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹)</p>
-              <Input type="number" value={editBillAmount} onChange={(e) => setEditBillAmount(e.target.value)} placeholder="0" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-brand-700 mb-1">Transport Cost (₹)</p>
-              <Input type="number" value={editTransport} onChange={(e) => setEditTransport(e.target.value)} placeholder="0" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-brand-700 mb-1">Bill Photo / బిల్లు ఫోటో</p>
-              <ImageUpload value={editPhoto} onChange={setEditPhoto} />
-            </div>
+            <div><p className="text-xs font-semibold text-brand-700 mb-1">Invoice No</p><Input value={editInvoiceNo} onChange={(e) => setEditInvoiceNo(e.target.value)} placeholder="INV-2026-001" autoComplete="off" /></div>
+            <div><p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹)</p><Input type="number" value={editBillAmount} onChange={(e) => setEditBillAmount(e.target.value)} placeholder="0" /></div>
+            <div><p className="text-xs font-semibold text-brand-700 mb-1">Transport Cost (₹)</p><Input type="number" value={editTransport} onChange={(e) => setEditTransport(e.target.value)} placeholder="0" /></div>
+            <div><p className="text-xs font-semibold text-brand-700 mb-1">Bill Photo</p><ImageUpload value={editPhoto} onChange={setEditPhoto} /></div>
             <div className="flex gap-2 pt-2">
               <Button variant="secondary" className="flex-1" onClick={() => setEditMode(false)}>Cancel</Button>
-              <Button className="flex-1" onClick={saveEditRecord} disabled={editSaving}>
-                {editSaving ? "Saving..." : "Save Changes"}
-              </Button>
+              <Button className="flex-1" onClick={saveEditRecord} disabled={editSaving}>{editSaving ? "Saving..." : "Save Changes"}</Button>
             </div>
           </div>
         )}
