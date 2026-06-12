@@ -217,7 +217,7 @@ export default function ProductsPage() {
     { key: "code", label: "Code", sortable: true, render: (p: Product) => (
       <span className="font-mono text-xs text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">{p.code}</span>
     )},
-    { key: "name", label: t.sareeName, sortable: true },
+    { key: "name", label: t.sareeName, sortable: true, sticky: true },
     { key: "category", label: t.type, render: (p: Product) => p.category?.name ?? "-" },
     { key: "supplier", label: t.supplier, render: (p: Product) => p.supplier?.name ?? "-" },
     { key: "purchasePrice", label: t.buyPrice, render: (p: Product) => inr(p.purchasePrice) },

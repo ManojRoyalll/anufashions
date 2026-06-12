@@ -8,6 +8,7 @@ type Column<T> = {
   label: string;
   render?: (row: T) => React.ReactNode;
   sortable?: boolean;
+  sticky?: boolean;   // freeze this column to the left on horizontal scroll
 };
 
 type DataTableProps<T extends { id: string }> = {
@@ -87,8 +88,12 @@ export function DataTable<T extends { id: string }>({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={cn("px-4 py-3 font-semibold text-brand-800", col.sortable && "cursor-pointer select-none")}
                   onClick={() => col.sortable && toggleSort(col.key)}
+                  className={cn(
+                    "px-4 py-3 font-semibold text-brand-800 whitespace-nowrap",
+                    col.sortable && "cursor-pointer select-none",
+                    col.sticky && "sticky left-0 z-20 bg-brand-50 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]"
+                  )}
                 >
                   <span className="inline-flex items-center gap-1">
                     {col.label}
@@ -109,7 +114,13 @@ export function DataTable<T extends { id: string }>({
               paged.map((row) => (
                 <tr key={row.id} className="border-t border-brand-50 hover:bg-brand-50/40">
                   {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-3">
+                    <td
+                      key={col.key}
+                      className={cn(
+                        "px-4 py-3",
+                        col.sticky && "sticky left-0 z-10 bg-white shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]"
+                      )}
+                    >
                       {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? "-")}
                     </td>
                   ))}
