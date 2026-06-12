@@ -89,7 +89,14 @@ export default function BuyPage() {
     setItems((prev) => prev.map((i) => {
       if (i.id !== id) return i;
       const updated = { ...i, [field]: val };
-      // Regenerate code whenever buy or sell price changes, as long as both are complete numbers
+      // Auto-set sell price = 2× buy price when buy price is entered and sell is still empty/unchanged
+      if (field === "buyPrice") {
+        const buy = Number(val);
+        if (buy > 0 && (!i.sellPrice || Number(i.sellPrice) === Number(i.buyPrice) * 2)) {
+          updated.sellPrice = String(buy * 2);
+        }
+      }
+      // Regenerate code whenever buy or sell price changes
       if (field === "buyPrice" || field === "sellPrice" || field === "maxDiscount") {
         const buy  = Number(field === "buyPrice"  ? val : updated.buyPrice);
         const sell = Number(field === "sellPrice" ? val : updated.sellPrice);

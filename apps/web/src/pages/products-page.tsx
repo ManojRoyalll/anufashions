@@ -145,6 +145,15 @@ export default function ProductsPage() {
     }
   }, [modalOpen, editing]);
 
+  // Auto-set sell price = 2× buy price when adding new item and sell price hasn't been manually set
+  useEffect(() => {
+    if (!modalOpen || editing) return;
+    const currentSell = sellingPrice;
+    if (purchasePrice > 0 && (currentSell === 0 || currentSell === purchasePrice * 2)) {
+      setValue("sellingPrice", purchasePrice * 2);
+    }
+  }, [purchasePrice, modalOpen, editing]);
+
   // Auto-generate code when adding new item and prices are filled
   useEffect(() => {
     if (!modalOpen || editing) return; // only for new items
