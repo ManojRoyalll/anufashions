@@ -422,13 +422,13 @@ export default function BuyPage() {
                           <p className="text-xs font-semibold text-brand-600 mb-1">Item Name</p>
                           <Input placeholder="Saree / item name" value={item.title} onChange={(e) => updateItem(item.id, "title", e.target.value)} autoComplete="off" />
                         </div>
-                        <div style={{ width: "110px" }}>
-                          <p className="text-xs font-semibold text-brand-600 mb-1">Code</p>
-                          <Input placeholder="SILK-001" value={item.itemCode} onChange={(e) => updateItem(item.id, "itemCode", e.target.value)} autoComplete="off" />
-                        </div>
                         <button onClick={() => items.length > 1 ? removeItem(item.id) : undefined} className={`mt-5 p-2 rounded-xl ${items.length > 1 ? "text-red-400 hover:bg-red-100" : "text-slate-200"}`}>
                           <Trash2 className="h-4 w-4" />
                         </button>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Code <span className="text-slate-400 font-normal">(auto-generated)</span></p>
+                        <Input placeholder="e.g. ANU32/456-MP094-D5" value={item.itemCode} onChange={(e) => updateItem(item.id, "itemCode", e.target.value)} autoComplete="off" />
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-brand-600 mb-1">Category</p>
