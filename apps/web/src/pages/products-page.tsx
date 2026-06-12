@@ -61,8 +61,14 @@ export default function ProductsPage() {
   const [showMore, setShowMore] = useState(false);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [filterSort, setFilterSort] = useState<"name" | "code" | "sellingPrice" | "quantity">("name");
+  const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterMinPrice, setFilterMinPrice] = useState("");
+  const [filterMaxPrice, setFilterMaxPrice] = useState("");
+  const [filterMinQty, setFilterMinQty] = useState("");
+  const [filterMaxQty, setFilterMaxQty] = useState("");
+  const [filterSort, setFilterSort] = useState<"name" | "code" | "sellingPrice" | "quantity" | "purchasePrice" | "margin">("name");
   const [filterSortDir, setFilterSortDir] = useState<"asc" | "desc">("asc");
+  const [showFilters, setShowFilters] = useState(false);
 
   const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema)
@@ -94,17 +100,24 @@ export default function ProductsPage() {
     let list = products.filter((p) => {
       if (filterCategory && p.category?.name !== filterCategory) return false;
       if (filterStatus && p.stockStatus !== filterStatus) return false;
+      if (filterSupplier && p.supplier?.name !== filterSupplier) return false;
+      if (filterMinPrice && p.sellingPrice < Number(filterMinPrice)) return false;
+      if (filterMaxPrice && p.sellingPrice > Number(filterMaxPrice)) return false;
+      if (filterMinQty && p.quantity < Number(filterMinQty)) return false;
+      if (filterMaxQty && p.quantity > Number(filterMaxQty)) return false;
       return true;
     });
     list = [...list].sort((a, b) => {
-      const av = filterSort === "sellingPrice" || filterSort === "quantity" ? (a[filterSort] as number) : String(a[filterSort] ?? "").toLowerCase();
-      const bv = filterSort === "sellingPrice" || filterSort === "quantity" ? (b[filterSort] as number) : String(b[filterSort] ?? "").toLowerCase();
+      const av = (filterSort === "sellingPrice" || filterSort === "quantity" || filterSort === "purchasePrice" || filterSort === "margin")
+        ? (a[filterSort] as number) : String(a[filterSort as keyof typeof a] ?? "").toLowerCase();
+      const bv = (filterSort === "sellingPrice" || filterSort === "quantity" || filterSort === "purchasePrice" || filterSort === "margin")
+        ? (b[filterSort] as number) : String(b[filterSort as keyof typeof b] ?? "").toLowerCase();
       if (av < bv) return filterSortDir === "asc" ? -1 : 1;
       if (av > bv) return filterSortDir === "asc" ? 1 : -1;
       return 0;
     });
     return list;
-  }, [products, filterCategory, filterStatus, filterSort, filterSortDir]);
+  }, [products, filterCategory, filterStatus, filterSupplier, filterMinPrice, filterMaxPrice, filterMinQty, filterMaxQty, filterSort, filterSortDir]);
 
   // Reset form values after modal opens so fields are mounted when reset fires
   useEffect(() => {
@@ -246,32 +259,120 @@ export default function ProductsPage() {
 
       <Card>
         <CardContent className="space-y-4">
-          {/* ── Filters + Sort ── */}
-          <div className="flex flex-wrap gap-2">
-            <select className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-              <option value="">{t.types}</option>
-              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
-            <select className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-              <option value="">{t.stock}</option>
-              <option value="IN_STOCK">{t.inStock}</option>
-              <option value="LOW_STOCK">{t.lowStock}</option>
-              <option value="OUT_OF_STOCK">{t.outOfStock}</option>
-            </select>
-            <div className="flex items-center gap-1 ml-auto">
-              <span className="text-xs text-slate-500">Sort:</span>
-              <select className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm" value={filterSort} onChange={(e) => setFilterSort(e.target.value as typeof filterSort)}>
-                <option value="name">Name</option>
-                <option value="code">Code</option>
-                <option value="sellingPrice">Price</option>
-                <option value="quantity">Quantity</option>
-              </select>
-              <button
-                onClick={() => setFilterSortDir((d) => d === "asc" ? "desc" : "asc")}
-                className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
-              >{filterSortDir === "asc" ? "↑" : "↓"}</button>
-            </div>
-          </div>
+          {/* ── Filter bar ── */}
+          {(() => {
+            const activeCount = [filterCategory, filterStatus, filterSupplier, filterMinPrice, filterMaxPrice, filterMinQty, filterMaxQty].filter(Boolean).length;
+            const clearAll = () => { setFilterCategory(""); setFilterStatus(""); setFilterSupplier(""); setFilterMinPrice(""); setFilterMaxPrice(""); setFilterMinQty(""); setFilterMaxQty(""); };
+            return (
+              <div className="space-y-3">
+                {/* Top row: search toggle + sort */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setShowFilters(v => !v)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition ${
+                      showFilters || activeCount > 0
+                        ? "bg-brand-700 text-white border-brand-700"
+                        : "bg-white text-brand-700 border-brand-200 hover:bg-brand-50"
+                    }`}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 8h10M11 12h2M15 16H9" /></svg>
+                    Filters
+                    {activeCount > 0 && <span className="ml-1 bg-white text-brand-700 rounded-full px-1.5 text-xs font-bold">{activeCount}</span>}
+                  </button>
+                  {activeCount > 0 && (
+                    <button onClick={clearAll} className="text-xs text-terra-600 font-medium hover:underline">
+                      Clear all
+                    </button>
+                  )}
+                  <div className="flex items-center gap-1 ml-auto">
+                    <span className="text-xs text-slate-500">Sort:</span>
+                    <select className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm" value={filterSort} onChange={(e) => setFilterSort(e.target.value as typeof filterSort)}>
+                      <option value="name">Name</option>
+                      <option value="code">Code</option>
+                      <option value="sellingPrice">Sell Price</option>
+                      <option value="purchasePrice">Buy Price</option>
+                      <option value="quantity">Quantity</option>
+                      <option value="margin">Profit</option>
+                    </select>
+                    <button
+                      onClick={() => setFilterSortDir(d => d === "asc" ? "desc" : "asc")}
+                      className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
+                    >{filterSortDir === "asc" ? "↑ A–Z" : "↓ Z–A"}</button>
+                  </div>
+                </div>
+
+                {/* Expanded filter panel */}
+                {showFilters && (
+                  <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+
+                    {/* Category */}
+                    <div>
+                      <p className="text-xs font-semibold text-brand-700 mb-1">Type / Category</p>
+                      <select className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                        <option value="">All Types</option>
+                        {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Supplier */}
+                    <div>
+                      <p className="text-xs font-semibold text-brand-700 mb-1">Supplier</p>
+                      <select className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm" value={filterSupplier} onChange={(e) => setFilterSupplier(e.target.value)}>
+                        <option value="">All Suppliers</option>
+                        {suppliers.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Stock status */}
+                    <div>
+                      <p className="text-xs font-semibold text-brand-700 mb-1">Stock Status</p>
+                      <select className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                        <option value="">All</option>
+                        <option value="IN_STOCK">{t.inStock}</option>
+                        <option value="LOW_STOCK">{t.lowStock}</option>
+                        <option value="OUT_OF_STOCK">{t.outOfStock}</option>
+                      </select>
+                    </div>
+
+                    {/* Sell price range */}
+                    <div>
+                      <p className="text-xs font-semibold text-brand-700 mb-1">Sell Price (₹)</p>
+                      <div className="flex items-center gap-1.5">
+                        <input type="number" placeholder="Min" value={filterMinPrice} onChange={(e) => setFilterMinPrice(e.target.value)}
+                          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+                        <span className="text-slate-400 text-xs shrink-0">to</span>
+                        <input type="number" placeholder="Max" value={filterMaxPrice} onChange={(e) => setFilterMaxPrice(e.target.value)}
+                          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+                      </div>
+                    </div>
+
+                    {/* Quantity range */}
+                    <div>
+                      <p className="text-xs font-semibold text-brand-700 mb-1">Pieces (Qty)</p>
+                      <div className="flex items-center gap-1.5">
+                        <input type="number" placeholder="Min" value={filterMinQty} onChange={(e) => setFilterMinQty(e.target.value)}
+                          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+                        <span className="text-slate-400 text-xs shrink-0">to</span>
+                        <input type="number" placeholder="Max" value={filterMaxQty} onChange={(e) => setFilterMaxQty(e.target.value)}
+                          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+                      </div>
+                    </div>
+
+                    {/* Active filter summary */}
+                    {activeCount > 0 && (
+                      <div className="sm:col-span-2 md:col-span-3 flex items-center justify-between bg-brand-100 rounded-xl px-3 py-2">
+                        <span className="text-xs text-brand-700 font-medium">
+                          Showing <strong>{filtered.length}</strong> of {products.length} items
+                        </span>
+                        <button onClick={clearAll} className="text-xs text-terra-600 font-semibold hover:underline">Clear all filters</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <DataTable columns={columns} data={filtered} searchable searchPlaceholder={t.search} searchKeys={["name", "code"]} />
         </CardContent>
       </Card>
