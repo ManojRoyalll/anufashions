@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Drawer } from "@/components/ui/drawer";
 import { TwoPane } from "@/components/ui/two-pane";
-import { inr, generateItemCode } from "@/lib/utils";
+import { inr, generateItemCode, roundUpTo50 } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 import { ImageUpload } from "@/components/ui/image-upload";
 
@@ -89,11 +89,11 @@ export default function BuyPage() {
     setItems((prev) => prev.map((i) => {
       if (i.id !== id) return i;
       const updated = { ...i, [field]: val };
-      // Auto-set sell price = 2× buy price when buy price is entered and sell is still empty/unchanged
+      // Auto-set sell price = 2× buy price, rounded up to nearest 50
       if (field === "buyPrice") {
         const buy = Number(val);
-        if (buy > 0 && (!i.sellPrice || Number(i.sellPrice) === Number(i.buyPrice) * 2)) {
-          updated.sellPrice = String(buy * 2);
+        if (buy > 0 && (!i.sellPrice || Number(i.sellPrice) === roundUpTo50(Number(i.buyPrice) * 2))) {
+          updated.sellPrice = String(roundUpTo50(buy * 2));
         }
       }
       // Regenerate code whenever buy or sell price changes
