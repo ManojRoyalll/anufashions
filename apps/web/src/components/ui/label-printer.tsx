@@ -341,6 +341,10 @@ export function LabelPrinterItem({ product }: { product: Product }) {
   const [layout, setLayout]         = useState<LabelLayout>(() => loadLayout(DEFAULT_SIZE));
   const [qr, setQr]                 = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [downloaded, setDownloaded] = useState(() => {
+    try { return localStorage.getItem(`label-downloaded-${product.id}`) === "1"; }
+    catch { return false; }
+  });
 
   useEffect(() => { saveLayout(labelSize, layout); }, [layout, labelSize]);
 
@@ -372,6 +376,9 @@ export function LabelPrinterItem({ product }: { product: Product }) {
       const a = document.createElement("a"); a.href = url;
       a.download = `${safeName(product.name)}-labels.pdf`; a.click();
       URL.revokeObjectURL(url);
+      // Mark as downloaded
+      setDownloaded(true);
+      try { localStorage.setItem(`label-downloaded-${product.id}`, "1"); } catch { /* ignore */ }
     } finally { setPdfLoading(false); }
   };
 
@@ -446,6 +453,16 @@ export function LabelPrinterItem({ product }: { product: Product }) {
         <Download className="mr-2 h-4 w-4" />
         {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
       </Button>
+
+      {/* Reset downloaded marker */}
+      {downloaded && (
+        <button
+          onClick={() => { setDownloaded(false); try { localStorage.removeItem(`label-downloaded-${product.id}`); } catch { /* ignore */ } }}
+          className="w-full text-xs text-slate-400 hover:text-slate-600 text-center py-1 transition"
+        >
+          ✓ Label downloaded — click to mark as not printed
+        </button>
+      )}
     </div>
   );
 
@@ -479,11 +496,17 @@ export function LabelPrinterItem({ product }: { product: Product }) {
     <>
       <button
         onClick={openPane}
-        title="Label"
-        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-brand-600 bg-brand-50 border border-brand-200 rounded-lg hover:bg-brand-100 transition"
+        title={downloaded ? "Label downloaded — click to reprint" : "Print label"}
+        className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg border transition ${
+          downloaded
+            ? "bg-green-100 text-green-700 border-green-300 hover:bg-green-200"
+            : "text-brand-600 bg-brand-50 border-brand-200 hover:bg-brand-100"
+        }`}
       >
-        <Tag className="h-3 w-3" />
-        Label
+        {downloaded
+          ? <><svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Label</>
+          : <><Tag className="h-3 w-3" />Label</>
+        }
       </button>
 
       <TwoPane
