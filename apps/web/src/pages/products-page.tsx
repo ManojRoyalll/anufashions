@@ -7,7 +7,7 @@ import { Plus, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/store/toast";
 import { useLang } from "@/hooks/use-lang";
-import { inr } from "@/lib/utils";
+import { inr, generateItemCode } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -64,12 +64,14 @@ export default function ProductsPage() {
   const [filterSort, setFilterSort] = useState<"name" | "code" | "sellingPrice" | "quantity">("name");
   const [filterSortDir, setFilterSortDir] = useState<"asc" | "desc">("asc");
 
-  const { register, handleSubmit, reset, watch, control, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema)
   });
 
   const purchasePrice = watch("purchasePrice") || 0;
   const sellingPrice = watch("sellingPrice") || 0;
+  const currentCode = watch("code") || "";
+  const discountLimit = watch("discountLimit") || 0;
   const liveMargin = sellingPrice - purchasePrice;
   const livePct = purchasePrice > 0 ? ((liveMargin / purchasePrice) * 100) : 0;
 
@@ -130,6 +132,14 @@ export default function ProductsPage() {
     }
   }, [modalOpen, editing]);
 
+  // Auto-generate code when adding new item and prices are filled
+  useEffect(() => {
+    if (!modalOpen || editing) return; // only for new items
+    if (purchasePrice > 0 && sellingPrice > 0 && !currentCode) {
+      setValue("code", generateItemCode(purchasePrice, sellingPrice, discountLimit));
+    }
+  }, [purchasePrice, sellingPrice, discountLimit, modalOpen, editing]);
+
   const openAdd = () => {
     setEditing(null);
     setShowMore(false);
@@ -146,7 +156,7 @@ export default function ProductsPage() {
     try {
       const payload = {
         ...data,
-        code: data.code || `ANU-${Date.now()}`,
+        code: data.code || generateItemCode(data.purchasePrice, data.sellingPrice, data.discountLimit ?? 0),
         supplierId: data.supplierId || undefined,
         priceRangeId: data.priceRangeId || undefined,
       };
@@ -334,7 +344,18 @@ export default function ProductsPage() {
           {showMore && (
             <div className="space-y-4 rounded-xl border border-brand-100 p-4">
               <FormField label={t.productCode} error={errors.code?.message}>
-                <Input {...register("code")} placeholder="e.g. ANU-SILK-001" />
+                <div className="flex gap-2">
+                  <Input {...register("code")} placeholder="Auto-generated from prices" className="flex-1" />
+                  {purchasePrice > 0 && sellingPrice > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setValue("code", generateItemCode(purchasePrice, sellingPrice, discountLimit))}
+                      className="shrink-0 px-3 py-2 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded-xl hover:bg-brand-100 transition"
+                    >
+                      ↻ New
+                    </button>
+                  )}
+                </div>
               </FormField>
               <div className="grid grid-cols-2 gap-4">
                 <FormField label={t.mrp} error={errors.mrp?.message}>

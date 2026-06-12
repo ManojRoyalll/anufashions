@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Drawer } from "@/components/ui/drawer";
 import { TwoPane } from "@/components/ui/two-pane";
-import { inr } from "@/lib/utils";
+import { inr, generateItemCode } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 import { ImageUpload } from "@/components/ui/image-upload";
 
@@ -80,7 +80,18 @@ export default function BuyPage() {
   };
 
   const updateItem = (id: string, field: keyof ItemRow, val: string) =>
-    setItems((prev) => prev.map((i) => i.id === id ? { ...i, [field]: val } : i));
+    setItems((prev) => prev.map((i) => {
+      if (i.id !== id) return i;
+      const updated = { ...i, [field]: val };
+      // Auto-generate code when both buy and sell prices are set and user hasn't typed a code
+      if ((field === "buyPrice" || field === "sellPrice") && !i.itemCode) {
+        const buy = Number(field === "buyPrice" ? val : updated.buyPrice);
+        const sell = Number(field === "sellPrice" ? val : updated.sellPrice);
+        const disc = Number(updated.maxDiscount) || 0;
+        if (buy > 0 && sell > 0) updated.itemCode = generateItemCode(buy, sell, disc);
+      }
+      return updated;
+    }));
 
   const removeItem = (id: string) =>
     setItems((prev) => prev.filter((i) => i.id !== id));
@@ -139,7 +150,7 @@ export default function BuyPage() {
         if (!categoryId) return;
         try {
           const productRes = await api.post("/products", {
-            code: item.itemCode.trim() || `ANU-${Date.now()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+            code: item.itemCode.trim() || generateItemCode(Number(item.buyPrice), Number(item.sellPrice), Number(item.maxDiscount) || 0),
             name: item.title.trim(),
             categoryId,
             supplierId,
