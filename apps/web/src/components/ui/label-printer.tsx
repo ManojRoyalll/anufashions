@@ -119,7 +119,7 @@ async function renderLabelCanvas(
     const fpx  = px(cfg.fontSize);
     const font = `${cfg.bold ? "bold " : ""}${fpx}px Arial`;
     const maxW = W - px(cfg.x) - px(1.5);
-    const lineH = Math.round(fpx * 1.3);
+    const lineH = Math.round(fpx * 1.35);
     let y = px(cfg.y);
     for (const line of wrap(text, font, maxW)) {
       ctx.font = font;
@@ -128,9 +128,25 @@ async function renderLabelCanvas(
     }
   };
 
+  // Special rendering for item code: split ANU and MP parts onto separate lines
+  const drawCode = (cfg: FieldCfg, code: string) => {
+    if (!cfg.visible) return;
+    const fpx   = px(cfg.fontSize);
+    const font  = `${cfg.bold ? "bold " : ""}${fpx}px Arial`;
+    const lineH = Math.round(fpx * 1.45);
+    // Split on ' ' or '-' between ANU and MP sections
+    const parts = code.split(/-(?=MP)/).filter(Boolean);
+    let y = px(cfg.y);
+    ctx.font = font;
+    for (const part of parts) {
+      ctx.fillText(part, px(cfg.x), y);
+      y += lineH;
+    }
+  };
+
   drawField(layout.shopName, "Anu Fashions");
   drawField(layout.itemName, product.name);
-  drawField(layout.itemCode, displayCode(product.code));
+  drawCode(layout.itemCode, displayCode(product.code));
 
   return canvas;
 }

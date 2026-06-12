@@ -333,6 +333,28 @@ const api = {
 
   delete: async (path: string) => {
     const parts = path.split('/'); const id = parts[parts.length - 1]; const resource = parts[parts.length - 2]
+
+    // ── DELETE PURCHASE ITEM (keeps the purchase + supplier intact) ──
+    if (resource === 'purchase-items') {
+      // Get the item before deleting so we can reverse its stock effect
+      const { data: item } = await supabase.from('PurchaseItem').select('purchaseId, productId, quantity, costPrice, lineTotal').eq('id', id).single()
+      if (item) {
+        // Decrement product stock
+        const { data: prod } = await supabase.from('Product').select('quantity').eq('id', item.productId).single()
+        if (prod) {
+          const nq = Math.max(0, prod.quantity - item.quantity)
+          await supabase.from('Product').update({ quantity: nq, stockStatus: stockStatus(nq), updatedAt: new Date().toISOString() }).eq('id', item.productId)
+        }
+        // Delete the item row
+        await supabase.from('PurchaseItem').delete().eq('id', id)
+        // Recalculate purchase totalAmount from remaining items
+        const { data: remaining } = await supabase.from('PurchaseItem').select('lineTotal').eq('purchaseId', item.purchaseId)
+        const newTotal = (remaining ?? []).reduce((s: number, r: any) => s + Number(r.lineTotal), 0)
+        await supabase.from('Purchase').update({ totalAmount: String(newTotal), updatedAt: new Date().toISOString() }).eq('id', item.purchaseId)
+      }
+      return { data: null, status: 204 }
+    }
+
     const tableMap: Record<string, string> = { products: 'Product', categories: 'Category', suppliers: 'Supplier', customers: 'Customer', 'price-ranges': 'PriceRange', expenses: 'Expense', sales: 'Sale', purchases: 'Purchase' }
     const table = tableMap[resource]
     if (!table) throw new Error(`Unknown DELETE: ${path}`)

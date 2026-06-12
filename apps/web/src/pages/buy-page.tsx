@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Check, ChevronDown, ChevronUp, Eye, Pencil } from "lucide-react";
 import api, { uploadBillPhoto } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { useToastStore } from "@/store/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +58,11 @@ export default function BuyPage() {
   const [editTransport, setEditTransport] = useState("");
   const [editPhoto, setEditPhoto] = useState<string | undefined>();
   const [editSaving, setEditSaving] = useState(false);
+
+  // Add item to existing purchase
+  const [addItemMode, setAddItemMode] = useState(false);
+  const [addItemRow, setAddItemRow] = useState<ItemRow>(emptyItem());
+  const [addItemSaving, setAddItemSaving] = useState(false);
 
   useEffect(() => {
     api.get("/suppliers").then((r) => setSuppliers(r.data));
@@ -251,6 +257,71 @@ export default function BuyPage() {
       setEditMode(false);
     } catch { show("Error saving", "error"); }
     finally { setEditSaving(false); }
+  };
+
+  const saveNewItemToPurchase = async () => {
+    if (!detailRecord || !addItemRow.title.trim() || !addItemRow.buyPrice || !addItemRow.quantity) {
+      show("Fill in item name, buy price and quantity", "error"); return;
+    }
+    setAddItemSaving(true);
+    try {
+      const supplierId = detailRecord.supplier?.id ?? detailRecord.supplierId;
+      // Ensure category
+      let categoryId: string | undefined;
+      const catName = addItemRow.categoryName.trim() || "General";
+      const existing = existingCategories.find((c) => c.name.toLowerCase() === catName.toLowerCase());
+      if (existing) { categoryId = existing.id; }
+      else {
+        try { const r = await api.post("/categories", { name: catName, status: "ACTIVE" }); categoryId = r.data.id; }
+        catch { const cats = await api.get("/categories"); categoryId = cats.data.find((c: any) => c.name.toLowerCase() === catName.toLowerCase())?.id; }
+      }
+      if (!categoryId) { show("Could not create category", "error"); return; }
+
+      // Create product (quantity 0, purchase will increment)
+      const productRes = await api.post("/products", {
+        code: addItemRow.itemCode.trim() || generateItemCode(Number(addItemRow.buyPrice), Number(addItemRow.sellPrice || addItemRow.buyPrice), Number(addItemRow.maxDiscount) || 0, addItemRow.id.split("").reduce((s, c) => s + c.charCodeAt(0), 0)),
+        name: addItemRow.title.trim(), categoryId, supplierId,
+        purchasePrice: Number(addItemRow.buyPrice),
+        sellingPrice: Number(addItemRow.sellPrice || addItemRow.buyPrice),
+        discountLimit: addItemRow.maxDiscount ? Number(addItemRow.maxDiscount) : undefined,
+        quantity: 0,
+      });
+
+      // Add PurchaseItem row and increment stock
+      const qty = Number(addItemRow.quantity);
+      const cost = Number(addItemRow.buyPrice);
+      await supabase.from('PurchaseItem').insert({ id: crypto.randomUUID(), purchaseId: detailRecord.id, productId: productRes.data.id, quantity: qty, costPrice: String(cost), lineTotal: String(qty * cost), createdAt: new Date().toISOString() });
+      const { data: prod } = await supabase.from('Product').select('quantity').eq('id', productRes.data.id).single();
+      if (prod) { const nq = prod.quantity + qty; await supabase.from('Product').update({ quantity: nq, stockStatus: nq <= 0 ? 'OUT_OF_STOCK' : nq <= 5 ? 'LOW_STOCK' : 'IN_STOCK', updatedAt: new Date().toISOString() }).eq('id', productRes.data.id); }
+
+      // Recalculate purchase total
+      const { data: allItems } = await supabase.from('PurchaseItem').select('lineTotal').eq('purchaseId', detailRecord.id);
+      const newTotal = (allItems ?? []).reduce((s: number, r: any) => s + Number(r.lineTotal), 0);
+      await supabase.from('Purchase').update({ totalAmount: String(newTotal), updatedAt: new Date().toISOString() }).eq('id', detailRecord.id);
+
+      show("Item added ✓");
+      setAddItemMode(false);
+      setAddItemRow(emptyItem());
+      const h = await api.get("/purchases");
+      setHistory(h.data);
+      const updated = h.data.find((p: any) => p.id === detailRecord.id);
+      if (updated) setDetailRecord(updated);
+    } catch (e: any) { show(e?.message || "Error adding item", "error"); }
+    finally { setAddItemSaving(false); }
+  };
+
+  const deletePurchaseItem = async (purchaseItemId: string) => {
+    if (!confirm("Remove this item from the purchase? Stock will be adjusted.")) return;
+    try {
+      await api.delete(`/purchase-items/${purchaseItemId}`);
+      show("Item removed ✓");
+      const h = await api.get("/purchases");
+      setHistory(h.data);
+      // Refresh detailRecord to reflect removed item + updated total
+      const updated = h.data.find((p: any) => p.id === detailRecord?.id);
+      if (updated) setDetailRecord(updated);
+      else setDetailRecord(null);
+    } catch { show("Error removing item", "error"); }
   };
 
   const deleteEntry = async (id: string) => {
@@ -525,7 +596,7 @@ export default function BuyPage() {
       {/* ── PURCHASE DETAIL DRAWER (read-only, backdrop close is fine) ── */}
       <Drawer
         open={!!detailRecord}
-        onClose={() => { setDetailRecord(null); setEditMode(false); }}
+        onClose={() => { setDetailRecord(null); setEditMode(false); setAddItemMode(false); }}
         title={editMode ? "Edit Invoice" : `Purchase — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`}
       >
         {detailRecord && !editMode && (
@@ -548,9 +619,24 @@ export default function BuyPage() {
                 <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items ({detailRecord.items.length})</p>
                 <div className="space-y-1.5">
                   {detailRecord.items.map((item: any, i: number) => (
-                    <div key={item.id ?? i} className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5">
-                      <div className="flex-1 min-w-0"><p className="font-semibold text-sm text-brand-900 truncate">{item.product?.name ?? "—"}</p><p className="text-xs text-slate-500">{item.product?.code}</p></div>
-                      <div className="text-right shrink-0 ml-3"><p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.costPrice))}</p><p className="text-xs text-brand-700 font-bold">{inr(Number(item.lineTotal ?? Number(item.costPrice) * item.quantity))}</p></div>
+                    <div key={item.id ?? i} className="flex items-center gap-2 rounded-xl bg-brand-50 px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-brand-900 truncate">{item.product?.name ?? "—"}</p>
+                        <p className="text-xs text-slate-500">{item.product?.code}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.costPrice))}</p>
+                        <p className="text-xs text-brand-700 font-bold">{inr(Number(item.lineTotal ?? Number(item.costPrice) * item.quantity))}</p>
+                      </div>
+                      {item.id && (
+                        <button
+                          onClick={() => deletePurchaseItem(item.id)}
+                          className="p-1.5 text-terra-400 hover:text-terra-600 hover:bg-terra-50 rounded-lg shrink-0"
+                          title="Remove item"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -565,6 +651,40 @@ export default function BuyPage() {
               </div>
             ) : (
               <div className="rounded-xl border-2 border-dashed border-brand-200 p-4 text-center"><p className="text-sm text-slate-400">No bill photo — click Edit Invoice to add one</p></div>
+            )}
+
+            {/* ── Add item to this purchase ── */}
+            {!addItemMode ? (
+              <button
+                onClick={() => { setAddItemMode(true); setAddItemRow(emptyItem()); }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-brand-700 border-2 border-dashed border-brand-300 rounded-xl hover:bg-brand-50 transition"
+              >
+                <Plus className="h-4 w-4" /> Add Item to This Purchase
+              </button>
+            ) : (
+              <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-3 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-700">Add New Item</p>
+                <div>
+                  <p className="text-xs text-brand-600 mb-1">Item Name *</p>
+                  <Input placeholder="Saree / item name" value={addItemRow.title} onChange={(e) => setAddItemRow(r => ({ ...r, title: e.target.value }))} autoComplete="off" />
+                </div>
+                <div>
+                  <p className="text-xs text-brand-600 mb-1">Category</p>
+                  <Input placeholder="e.g. Cotton Sarees" value={addItemRow.categoryName} onChange={(e) => setAddItemRow(r => ({ ...r, categoryName: e.target.value }))} autoComplete="off" list="add-item-cats" />
+                  <datalist id="add-item-cats">{existingCategories.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div><p className="text-xs text-brand-600 mb-1">Buy ₹ *</p><Input type="number" placeholder="0" value={addItemRow.buyPrice} onChange={(e) => setAddItemRow(r => ({ ...r, buyPrice: e.target.value }))} /></div>
+                  <div><p className="text-xs text-brand-600 mb-1">Sell ₹</p><Input type="number" placeholder="0" value={addItemRow.sellPrice} onChange={(e) => setAddItemRow(r => ({ ...r, sellPrice: e.target.value }))} /></div>
+                  <div><p className="text-xs text-brand-600 mb-1">Qty *</p><Input type="number" placeholder="1" value={addItemRow.quantity} onChange={(e) => setAddItemRow(r => ({ ...r, quantity: e.target.value }))} /></div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button variant="secondary" className="flex-1" onClick={() => setAddItemMode(false)}>Cancel</Button>
+                  <Button className="flex-1" onClick={saveNewItemToPurchase} disabled={addItemSaving}>
+                    {addItemSaving ? "Adding..." : "Add Item"}
+                  </Button>
+                </div>
+              </div>
             )}
           </>
         )}
