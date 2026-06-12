@@ -499,6 +499,293 @@ export function LabelPrinterItem({ product }: { product: Product }) {
   );
 }
 
+// ── CUSTOM LABEL PRINTER ─────────────────────────────────────────────────────
+// Opens from My Stock page top. User types saree name + sell price.
+// Label shows: QR | Anu Fashions / saree name / ₹price (no code).
+
+async function renderCustomCanvas(
+  name: string,
+  sellPrice: number,
+  size: LabelSize,
+): Promise<HTMLCanvasElement> {
+  const DPI = 300;
+  const MM  = DPI / 25.4;
+  const PT  = DPI / 72;
+  const W   = Math.round(size.w * MM);
+  const H   = Math.round(size.h * MM);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#000";
+
+  const pad = 2.5 * MM;
+
+  // QR encodes saree name + price
+  const qrData = `${name} | ${inr(sellPrice)}`;
+  const qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 1, color: { dark: "#000", light: "#fff" } });
+  const qrSide = Math.round((H - 2 * pad) * 0.95);
+  const qrImg = new Image();
+  qrImg.src = qrDataUrl;
+  await new Promise<void>((res) => { qrImg.onload = () => res(); });
+  ctx.drawImage(qrImg, pad, pad + (H - 2 * pad - qrSide) / 2, qrSide, qrSide);
+
+  // Text column
+  const textX   = pad + qrSide + 2.5 * MM;
+  const textMaxW = W - textX - pad;
+  const sc = size.h / 30;
+
+  const wrap = (text: string, font: string, maxW: number): string[] => {
+    ctx.font = font;
+    if (ctx.measureText(text).width <= maxW) return [text];
+    const words = text.split(/\s+/);
+    const lines: string[] = []; let cur = "";
+    for (const w of words) {
+      const t = cur ? `${cur} ${w}` : w;
+      if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; }
+      else { cur = t; }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  };
+
+  const shopPx  = Math.round(7   * sc * PT);
+  const namePx  = Math.round(9   * sc * PT);
+  const pricePx = Math.round(14  * sc * PT);
+  const lineH   = Math.round(namePx * 1.3);
+
+  let y = pad;
+
+  // Shop name
+  ctx.font = `${shopPx}px Arial`;
+  ctx.fillText("Anu Fashions", textX, y);
+  y += Math.round(shopPx * 1.4);
+
+  // Saree name (wrapped)
+  ctx.font = `bold ${namePx}px Arial`;
+  for (const line of wrap(name, `bold ${namePx}px Arial`, textMaxW)) {
+    ctx.fillText(line, textX, y);
+    y += lineH;
+  }
+  y += Math.round(2 * sc * MM);
+
+  // Price — big and bold
+  ctx.font = `bold ${pricePx}px Arial`;
+  ctx.fillText(inr(sellPrice), textX, y);
+
+  return canvas;
+}
+
+export function CustomLabelPrinter() {
+  const [open, setOpen]             = useState(false);
+  const [name, setName]             = useState("");
+  const [sellPrice, setSellPrice]   = useState("");
+  const [count, setCount]           = useState(1);
+  const [labelSize, setLabelSize]   = useState<LabelSize>(DEFAULT_SIZE);
+  const [customW, setCustomW]       = useState(String(DEFAULT_SIZE.w));
+  const [customH, setCustomH]       = useState(String(DEFAULT_SIZE.h));
+  const [showCustom, setShowCustom] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  // Regenerate preview whenever inputs change
+  useEffect(() => {
+    const n = name.trim();
+    const p = Number(sellPrice);
+    if (!n || !p) { setPreviewSrc(""); return; }
+    let cancelled = false;
+    renderCustomCanvas(n, p, labelSize).then((c) => {
+      if (!cancelled) setPreviewSrc(c.toDataURL("image/png"));
+    });
+    return () => { cancelled = true; };
+  }, [name, sellPrice, labelSize]);
+
+  const downloadPDF = async () => {
+    const n = name.trim(); const p = Number(sellPrice);
+    if (!n || !p) return;
+    setPdfLoading(true);
+    try {
+      // Build a fake Product-like object for the PDF builder
+      const fakeProduct = { id: "custom", code: "", name: n, sellingPrice: p, quantity: count };
+      const qrData = `${n} | ${inr(p)}`;
+      const qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 1, color: { dark: "#000", light: "#fff" } });
+
+      // Render count pages
+      const MM_TO_PT = 2.8346;
+      const pageW = labelSize.w * MM_TO_PT;
+      const pageH = labelSize.h * MM_TO_PT;
+      const pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }> = [];
+      for (let i = 0; i < count; i++) {
+        const canvas = await renderCustomCanvas(n, p, labelSize);
+        const b64 = canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
+        pages.push({ canvas, jpeg: Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)) });
+      }
+
+      const enc = new TextEncoder();
+      const parts: Uint8Array[] = [];
+      const offsets: number[] = [];
+      let pos = 0;
+      const write = (s: string) => { const b = enc.encode(s); parts.push(b); pos += b.length; };
+      const writeB = (b: Uint8Array) => { parts.push(b); pos += b.length; };
+
+      write("%PDF-1.4\n%\xFF\xFF\xFF\xFF\n");
+      const N = pages.length;
+      const pageBase = 3, contentBase = pageBase + N, imageBase = contentBase + N;
+      offsets[1] = pos; write(`1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n`);
+      offsets[2] = pos;
+      write(`2 0 obj\n<< /Type /Pages /Kids [${Array.from({length:N},(_,i)=>`${pageBase+i} 0 R`).join(" ")}] /Count ${N} >>\nendobj\n`);
+      for (let i = 0; i < N; i++) {
+        const { canvas, jpeg } = pages[i];
+        offsets[pageBase + i] = pos;
+        write(`${pageBase+i} 0 obj\n<< /Type /Page /Parent 2 0 R\n/MediaBox [0 0 ${pageW.toFixed(3)} ${pageH.toFixed(3)}]\n/Contents ${contentBase+i} 0 R\n/Resources << /XObject << /Im1 ${imageBase+i} 0 R >> >>\n>>\nendobj\n`);
+        const stream = `q ${pageW.toFixed(3)} 0 0 ${pageH.toFixed(3)} 0 0 cm /Im1 Do Q`;
+        offsets[contentBase+i] = pos;
+        write(`${contentBase+i} 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`);
+        offsets[imageBase+i] = pos;
+        write(`${imageBase+i} 0 obj\n<< /Type /XObject /Subtype /Image\n/Width ${canvas.width} /Height ${canvas.height}\n/ColorSpace /DeviceRGB /BitsPerComponent 8\n/Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`);
+        writeB(jpeg);
+        write(`\nendstream\nendobj\n`);
+      }
+      const xrefPos = pos;
+      const total = imageBase + N;
+      write(`xref\n0 ${total+1}\n0000000000 65535 f \n`);
+      for (let i = 1; i <= total; i++) write(`${String(offsets[i]??0).padStart(10,"0")} 00000 n \n`);
+      write(`trailer\n<< /Size ${total+1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`);
+      const out = new Uint8Array(parts.reduce((s,p)=>s+p.length,0));
+      let off = 0; for (const p of parts) { out.set(p, off); off += p.length; }
+      const blob = new Blob([out], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = `custom-label-${n.replace(/\s+/g,"-")}.pdf`; a.click();
+      URL.revokeObjectURL(url);
+    } finally { setPdfLoading(false); }
+  };
+
+  const leftPane = (
+    <div className="space-y-4">
+      <div>
+        <p className="text-xs font-semibold text-brand-700 mb-1">Saree / Item Name *</p>
+        <input
+          type="text" autoComplete="off" placeholder="e.g. SILVER PATTU"
+          value={name} onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
+        />
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-brand-700 mb-1">Selling Price (₹) *</p>
+        <input
+          type="number" placeholder="0"
+          value={sellPrice} onChange={(e) => setSellPrice(e.target.value)}
+          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
+        />
+      </div>
+
+      {/* Label size */}
+      <div className="bg-brand-50 rounded-xl px-3 py-2.5 space-y-2">
+        <p className="text-xs font-bold text-brand-700 uppercase tracking-wide">Label Size</p>
+        <div className="flex flex-wrap gap-1.5">
+          {LABEL_PRESETS.map((p) => (
+            <button key={p.label} onClick={() => { setLabelSize(p); setCustomW(String(p.w)); setCustomH(String(p.h)); }}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition leading-tight ${
+                labelSize.w === p.w && labelSize.h === p.h
+                  ? "bg-brand-700 text-white" : "bg-white text-brand-700 border border-brand-200 hover:border-brand-400"
+              }`}>{p.label}</button>
+          ))}
+        </div>
+        <button onClick={() => setShowCustom(v => !v)} className="text-xs text-brand-600 flex items-center gap-1">
+          <Settings2 className="h-3 w-3" /> Custom
+        </button>
+        {showCustom && (
+          <div className="flex items-center gap-2 pt-1 border-t border-brand-100">
+            <span className="text-xs text-slate-500">W:</span>
+            <input type="number" value={customW} onChange={(e) => setCustomW(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
+            <span className="text-xs text-slate-500">H:</span>
+            <input type="number" value={customH} onChange={(e) => setCustomH(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
+            <button onClick={() => { const w=Number(customW),h=Number(customH); if(w>0&&h>0) setLabelSize({w,h,label:`${w}×${h}mm`}); }}
+              className="rounded-lg bg-brand-700 text-white px-3 py-1 text-xs font-semibold">Apply</button>
+          </div>
+        )}
+      </div>
+
+      {/* Count */}
+      <div>
+        <p className="text-xs font-semibold text-brand-700 mb-1">Number of Labels</p>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCount(c => Math.max(1, c - 1))} className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100">−</button>
+          <input type="number" min={1} value={count} onChange={(e) => setCount(Math.max(1, Number(e.target.value)))}
+            className="flex-1 text-center text-base font-bold rounded-xl border border-brand-200 py-2 focus:border-brand-500 focus:outline-none" />
+          <button onClick={() => setCount(c => c + 1)} className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100">+</button>
+        </div>
+      </div>
+
+      <Button
+        className="w-full py-3"
+        onClick={downloadPDF}
+        disabled={pdfLoading || !name.trim() || !Number(sellPrice)}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
+      </Button>
+    </div>
+  );
+
+  const rightPane = (
+    <div className="space-y-3">
+      <p className="text-xs font-bold text-brand-700 uppercase tracking-wide">Live Preview</p>
+      {previewSrc ? (
+        <div className="flex justify-center">
+          <img
+            src={previewSrc}
+            style={{
+              width: Math.min(labelSize.w * 3.5, 360),
+              height: Math.round(Math.min(labelSize.w * 3.5, 360) * (labelSize.h / labelSize.w)),
+              borderRadius: 6, border: "1px solid #ddd", display: "block"
+            }}
+            alt="label preview"
+          />
+        </div>
+      ) : (
+        <div className="rounded-xl border-2 border-dashed border-brand-200 p-10 text-center">
+          <p className="text-sm text-slate-400">Enter a name and price to see the preview</p>
+        </div>
+      )}
+      <div className="bg-brand-50 rounded-xl p-3 space-y-1 text-xs text-slate-600">
+        <p className="font-semibold text-brand-800 text-sm">What's on this label:</p>
+        <p>✓ QR code (encodes name + price)</p>
+        <p>✓ Anu Fashions</p>
+        <p>✓ Saree name</p>
+        <p>✓ Selling price — bold</p>
+        <p className="text-slate-400">✗ No item code</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-brand-700 bg-white border border-brand-200 rounded-xl hover:bg-brand-50 transition"
+      >
+        <Tag className="h-4 w-4" />
+        Custom Label
+      </button>
+
+      <TwoPane
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Custom Label / కస్టమ్ లేబుల్"
+        leftLabel="Label Details"
+        rightLabel="Preview"
+        leftPane={leftPane}
+        rightPane={rightPane}
+      />
+    </>
+  );
+}
+
 // Keep old export for any legacy usage (no-op, just redirects)
 export function LabelPrinter({ products }: { products: Product[] }) {
   return null;
