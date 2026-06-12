@@ -14,20 +14,23 @@ export function inr(value: number) {
 }
 
 // ── Item code generator ────────────────────────────────────────────────────────
-// Pattern (user's original style + random pad at end):
-//   ANU5 + first digit of buy price + / + rest of buy digits + random digit
-//   MP6  + first digit of sell price + / + rest of sell digits + random digit
+// Pattern (user's original style):
+//   ANU5 + first digit of buy + / + rest of buy digits + pad digit
+//   MP6  + first digit of sell + / + rest of sell digits + pad digit
 //   D    + max discount %
 //
-// Example: buy=245, sell=490, disc=5 → ANU52/453-MP64/907-D5
-// Example: buy=80,  sell=160, disc=10 → ANU58/03-MP61/603-D10
-export function generateItemCode(buyPrice: number, sellPrice: number, maxDiscount = 0): string {
-  const rand = () => String(Math.floor(Math.random() * 9) + 1); // 1–9
+// pad is derived from a seed (use item id or a stable value) so the code
+// doesn't change on every keystroke while typing — only changes when prices change.
+//
+// Example: buy=245, sell=490, disc=5, pad=3 → ANU52/403-MP64/903-D5
+export function generateItemCode(buyPrice: number, sellPrice: number, maxDiscount = 0, seed = 0): string {
+  // Derive a stable 1–9 digit from the seed so the pad doesn't flicker
+  const pad = ((Math.abs(seed) % 9) + 1).toString();
   const buy  = String(Math.round(buyPrice));
   const sell = String(Math.round(sellPrice));
 
-  const anuCode = `ANU5${buy[0]}/${buy.slice(1)}${rand()}`;
-  const mpCode  = `MP6${sell[0]}/${sell.slice(1)}${rand()}`;
+  const anuCode = `ANU5${buy[0]}/${buy.slice(1)}${pad}`;
+  const mpCode  = `MP6${sell[0]}/${sell.slice(1)}${pad}`;
   const dCode   = maxDiscount > 0 ? `-D${Math.round(maxDiscount)}` : "";
 
   return `${anuCode}-${mpCode}${dCode}`;

@@ -83,12 +83,16 @@ export default function BuyPage() {
     setItems((prev) => prev.map((i) => {
       if (i.id !== id) return i;
       const updated = { ...i, [field]: val };
-      // Auto-generate code when both buy and sell prices are set and user hasn't typed a code
-      if ((field === "buyPrice" || field === "sellPrice") && !i.itemCode) {
-        const buy = Number(field === "buyPrice" ? val : updated.buyPrice);
+      // Regenerate code whenever buy or sell price changes, as long as both are complete numbers
+      if (field === "buyPrice" || field === "sellPrice" || field === "maxDiscount") {
+        const buy  = Number(field === "buyPrice"  ? val : updated.buyPrice);
         const sell = Number(field === "sellPrice" ? val : updated.sellPrice);
-        const disc = Number(updated.maxDiscount) || 0;
-        if (buy > 0 && sell > 0) updated.itemCode = generateItemCode(buy, sell, disc);
+        const disc = Number(field === "maxDiscount" ? val : updated.maxDiscount) || 0;
+        if (buy > 0 && sell > 0) {
+          // Use item id chars as seed so pad is stable per item but different across items
+          const seed = i.id.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+          updated.itemCode = generateItemCode(buy, sell, disc, seed);
+        }
       }
       return updated;
     }));

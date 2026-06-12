@@ -135,8 +135,10 @@ export default function ProductsPage() {
   // Auto-generate code when adding new item and prices are filled
   useEffect(() => {
     if (!modalOpen || editing) return; // only for new items
-    if (purchasePrice > 0 && sellingPrice > 0 && !currentCode) {
-      setValue("code", generateItemCode(purchasePrice, sellingPrice, discountLimit));
+    if (purchasePrice > 0 && sellingPrice > 0) {
+      // Stable seed based on prices so code doesn't flicker while typing
+      const seed = Math.round(purchasePrice) + Math.round(sellingPrice);
+      setValue("code", generateItemCode(purchasePrice, sellingPrice, discountLimit, seed));
     }
   }, [purchasePrice, sellingPrice, discountLimit, modalOpen, editing]);
 
@@ -156,7 +158,7 @@ export default function ProductsPage() {
     try {
       const payload = {
         ...data,
-        code: data.code || generateItemCode(data.purchasePrice, data.sellingPrice, data.discountLimit ?? 0),
+        code: data.code || generateItemCode(data.purchasePrice, data.sellingPrice, data.discountLimit ?? 0, Math.round(data.purchasePrice) + Math.round(data.sellingPrice)),
         supplierId: data.supplierId || undefined,
         priceRangeId: data.priceRangeId || undefined,
       };
@@ -349,7 +351,7 @@ export default function ProductsPage() {
                   {purchasePrice > 0 && sellingPrice > 0 && (
                     <button
                       type="button"
-                      onClick={() => setValue("code", generateItemCode(purchasePrice, sellingPrice, discountLimit))}
+                      onClick={() => setValue("code", generateItemCode(purchasePrice, sellingPrice, discountLimit, Math.floor(Math.random() * 9) + 1))}
                       className="shrink-0 px-3 py-2 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded-xl hover:bg-brand-100 transition"
                     >
                       ↻ New
