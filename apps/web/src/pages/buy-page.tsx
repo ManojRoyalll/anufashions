@@ -113,30 +113,29 @@ export default function BuyPage() {
         }
       }
 
-      // Ensure categories and create products
+      // Ensure categories and create products — all in parallel for speed
       const purchaseItems: { productId: string; quantity: number; costPrice: number }[] = [];
       let saved = 0;
 
-      for (const item of validItems) {
-        // Upsert category
-        let categoryId: string;
+      // Step 1: resolve all category IDs in parallel
+      const categoryIds = await Promise.all(validItems.map(async (item) => {
         const catName = item.categoryName.trim() || "General";
         const existing = existingCategories.find((c) => c.name.toLowerCase() === catName.toLowerCase());
-        if (existing) {
-          categoryId = existing.id;
-        } else {
-          try {
-            const catRes = await api.post("/categories", { name: catName, status: "ACTIVE" });
-            categoryId = catRes.data.id;
-          } catch {
-            const cats = await api.get("/categories");
-            const found = cats.data.find((c: ExistingCategory) => c.name.toLowerCase() === catName.toLowerCase());
-            categoryId = found?.id;
-            if (!categoryId) continue;
-          }
+        if (existing) return existing.id;
+        try {
+          const catRes = await api.post("/categories", { name: catName, status: "ACTIVE" });
+          return catRes.data.id as string;
+        } catch {
+          const cats = await api.get("/categories");
+          const found = cats.data.find((c: ExistingCategory) => c.name.toLowerCase() === catName.toLowerCase());
+          return (found?.id as string) ?? null;
         }
+      }));
 
-        // Create product with quantity 0 — the purchase record below will increment it
+      // Step 2: create all products in parallel
+      await Promise.all(validItems.map(async (item, idx) => {
+        const categoryId = categoryIds[idx];
+        if (!categoryId) return;
         try {
           const productRes = await api.post("/products", {
             code: item.itemCode.trim() || `ANU-${Date.now()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
@@ -155,7 +154,7 @@ export default function BuyPage() {
           });
           saved++;
         } catch { /* skip failed items */ }
-      }
+      }));
 
       // Create purchase record (invoice)
       if (purchaseItems.length > 0) {
