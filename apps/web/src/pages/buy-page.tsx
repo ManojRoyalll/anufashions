@@ -266,6 +266,28 @@ export default function BuyPage() {
     finally { setEditSaving(false); }
   };
 
+  // Updates addItemRow with same auto-logic as updateItem (auto sell=2×, auto code)
+  const updateAddItem = (field: keyof ItemRow, val: string) =>
+    setAddItemRow((r) => {
+      const updated = { ...r, [field]: val };
+      if (field === "buyPrice") {
+        const buy = Number(val);
+        if (buy > 0 && (!r.sellPrice || Number(r.sellPrice) === Number(r.buyPrice) * 2)) {
+          updated.sellPrice = String(buy * 2);
+        }
+      }
+      if (field === "buyPrice" || field === "sellPrice" || field === "maxDiscount") {
+        const buy  = Number(field === "buyPrice"  ? val : updated.buyPrice);
+        const sell = Number(field === "sellPrice" ? val : updated.sellPrice);
+        const disc = Number(field === "maxDiscount" ? val : updated.maxDiscount) || 0;
+        if (buy > 0 && sell > 0) {
+          const seed = r.id.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+          updated.itemCode = generateItemCode(buy, sell, disc, seed);
+        }
+      }
+      return updated;
+    });
+
   const saveNewItemToPurchase = async () => {
     if (!detailRecord || !addItemRow.title.trim() || !addItemRow.buyPrice || !addItemRow.quantity) {
       show("Fill in item name, buy price and quantity", "error"); return;
@@ -669,22 +691,40 @@ export default function BuyPage() {
                 <Plus className="h-4 w-4" /> Add Item to This Purchase
               </button>
             ) : (
-              <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-3 space-y-2">
+              <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-3 space-y-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-brand-700">Add New Item</p>
+
                 <div>
-                  <p className="text-xs text-brand-600 mb-1">Item Name *</p>
-                  <Input placeholder="Saree / item name" value={addItemRow.title} onChange={(e) => setAddItemRow(r => ({ ...r, title: e.target.value }))} autoComplete="off" />
+                  <p className="text-xs font-semibold text-brand-600 mb-1">Item Name *</p>
+                  <Input placeholder="Saree / item name" value={addItemRow.title} onChange={(e) => updateAddItem("title", e.target.value)} autoComplete="off" />
                 </div>
+
                 <div>
-                  <p className="text-xs text-brand-600 mb-1">Category</p>
-                  <Input placeholder="e.g. Cotton Sarees" value={addItemRow.categoryName} onChange={(e) => setAddItemRow(r => ({ ...r, categoryName: e.target.value }))} autoComplete="off" list="add-item-cats" />
+                  <p className="text-xs font-semibold text-brand-600 mb-1">Category</p>
+                  <Input placeholder="e.g. Cotton Sarees" value={addItemRow.categoryName} onChange={(e) => updateAddItem("categoryName", e.target.value)} autoComplete="off" list="add-item-cats" />
                   <datalist id="add-item-cats">{existingCategories.map((c) => <option key={c.id} value={c.name} />)}</datalist>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div><p className="text-xs text-brand-600 mb-1">Buy ₹ *</p><Input type="number" placeholder="0" value={addItemRow.buyPrice} onChange={(e) => setAddItemRow(r => ({ ...r, buyPrice: e.target.value }))} /></div>
-                  <div><p className="text-xs text-brand-600 mb-1">Sell ₹</p><Input type="number" placeholder="0" value={addItemRow.sellPrice} onChange={(e) => setAddItemRow(r => ({ ...r, sellPrice: e.target.value }))} /></div>
-                  <div><p className="text-xs text-brand-600 mb-1">Qty *</p><Input type="number" placeholder="1" value={addItemRow.quantity} onChange={(e) => setAddItemRow(r => ({ ...r, quantity: e.target.value }))} /></div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div><p className="text-xs font-semibold text-brand-600 mb-1">Buy ₹ *</p><Input type="number" placeholder="0" value={addItemRow.buyPrice} onChange={(e) => updateAddItem("buyPrice", e.target.value)} /></div>
+                  <div><p className="text-xs font-semibold text-brand-600 mb-1">Sell ₹</p><Input type="number" placeholder="0" value={addItemRow.sellPrice} onChange={(e) => updateAddItem("sellPrice", e.target.value)} /></div>
+                  <div><p className="text-xs font-semibold text-brand-600 mb-1">Max Disc %</p><Input type="number" placeholder="0" min={0} max={100} value={addItemRow.maxDiscount} onChange={(e) => updateAddItem("maxDiscount", e.target.value)} /></div>
+                  <div><p className="text-xs font-semibold text-brand-600 mb-1">Qty *</p><Input type="number" placeholder="1" value={addItemRow.quantity} onChange={(e) => updateAddItem("quantity", e.target.value)} /></div>
                 </div>
+
+                {Number(addItemRow.buyPrice) > 0 && Number(addItemRow.sellPrice) > 0 && (
+                  <div className="rounded-xl bg-brand-50 px-3 py-2 text-xs flex gap-3">
+                    <span className="font-semibold text-brand-800">Profit:</span>
+                    <span className="font-bold text-brand-700">{inr(Number(addItemRow.sellPrice) - Number(addItemRow.buyPrice))}</span>
+                    <span className="text-slate-500">({Number(addItemRow.buyPrice) > 0 ? (((Number(addItemRow.sellPrice) - Number(addItemRow.buyPrice)) / Number(addItemRow.buyPrice)) * 100).toFixed(1) : 0}%)</span>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-xs font-semibold text-brand-600 mb-1">Code <span className="font-normal text-slate-400">(auto-generated)</span></p>
+                  <Input placeholder="Auto-generated from prices" value={addItemRow.itemCode} onChange={(e) => updateAddItem("itemCode", e.target.value)} autoComplete="off" />
+                </div>
+
                 <div className="flex gap-2 pt-1">
                   <Button variant="secondary" className="flex-1" onClick={() => setAddItemMode(false)}>Cancel</Button>
                   <Button className="flex-1" onClick={saveNewItemToPurchase} disabled={addItemSaving}>

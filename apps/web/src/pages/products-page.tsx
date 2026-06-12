@@ -59,6 +59,9 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  // Supplier search state for the add/edit modal
+  const [supplierQuery, setSupplierQuery] = useState("");
+  const [showSupplierDrop, setShowSupplierDrop] = useState(false);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
@@ -167,12 +170,14 @@ export default function ProductsPage() {
   const openAdd = () => {
     setEditing(null);
     setShowMore(false);
+    setSupplierQuery("");
     setModalOpen(true);
   };
 
   const openEdit = (p: Product) => {
     setEditing(p);
     setShowMore(false);
+    setSupplierQuery(suppliers.find(s => s.id === p.supplierId)?.name ?? "");
     setModalOpen(true);
   };
 
@@ -387,13 +392,41 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? t.editItem : t.addItem} size="lg">
+      <Modal open={modalOpen} onClose={() => { setModalOpen(false); setSupplierQuery(""); }} title={editing ? t.editItem : t.addItem} size="lg">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+
+          {/* Supplier — searchable */}
           <FormField label={t.supplier} error={errors.supplierId?.message}>
-            <select {...register("supplierId")} className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none">
-              <option value="">{t.supplier}...</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                autoComplete="off"
+                placeholder="Search supplier by name..."
+                value={supplierQuery}
+                onChange={(e) => { setSupplierQuery(e.target.value); setShowSupplierDrop(true); setValue("supplierId", ""); }}
+                onFocus={() => setShowSupplierDrop(true)}
+                className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
+              />
+              {showSupplierDrop && supplierQuery && (
+                <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-brand-200 rounded-xl shadow-lg overflow-hidden">
+                  {suppliers
+                    .filter(s => s.name.toLowerCase().includes(supplierQuery.toLowerCase()))
+                    .slice(0, 6)
+                    .map(s => (
+                      <button key={s.id} type="button"
+                        onClick={() => { setValue("supplierId", s.id); setSupplierQuery(s.name); setShowSupplierDrop(false); }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-brand-50 border-b border-brand-50 last:border-0 text-sm font-medium text-brand-900"
+                      >{s.name}</button>
+                    ))
+                  }
+                  {suppliers.filter(s => s.name.toLowerCase().includes(supplierQuery.toLowerCase())).length === 0 && (
+                    <p className="px-4 py-3 text-sm text-slate-400">No supplier found</p>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* Hidden RHF field */}
+            <input type="hidden" {...register("supplierId")} />
           </FormField>
 
           <FormField label={t.sareeName} required error={errors.name?.message}>
@@ -433,6 +466,20 @@ export default function ProductsPage() {
             </FormField>
           </div>
 
+          {/* Code — always visible, auto-generated */}
+          <FormField label={`${t.productCode} (auto-generated)`} error={errors.code?.message}>
+            <div className="flex gap-2">
+              <Input {...register("code")} placeholder="Auto-generated from prices" className="flex-1" />
+              {purchasePrice > 0 && sellingPrice > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setValue("code", generateItemCode(purchasePrice, sellingPrice, discountLimit, Math.floor(Math.random() * 9) + 1))}
+                  className="shrink-0 px-3 py-2 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded-xl hover:bg-brand-100 transition"
+                >↻ New</button>
+              )}
+            </div>
+          </FormField>
+
           <FormField label={t.photo}>
             <Controller
               control={control}
@@ -456,20 +503,6 @@ export default function ProductsPage() {
 
           {showMore && (
             <div className="space-y-4 rounded-xl border border-brand-100 p-4">
-              <FormField label={t.productCode} error={errors.code?.message}>
-                <div className="flex gap-2">
-                  <Input {...register("code")} placeholder="Auto-generated from prices" className="flex-1" />
-                  {purchasePrice > 0 && sellingPrice > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setValue("code", generateItemCode(purchasePrice, sellingPrice, discountLimit, Math.floor(Math.random() * 9) + 1))}
-                      className="shrink-0 px-3 py-2 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded-xl hover:bg-brand-100 transition"
-                    >
-                      ↻ New
-                    </button>
-                  )}
-                </div>
-              </FormField>
               <div className="grid grid-cols-2 gap-4">
                 <FormField label={t.mrp} error={errors.mrp?.message}>
                   <Input type="number" min={0} step="0.01" {...register("mrp")} />
