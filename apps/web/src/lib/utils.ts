@@ -14,27 +14,21 @@ export function inr(value: number) {
 }
 
 // ── Item code generator ────────────────────────────────────────────────────────
-// Pattern:
-//   ANU part: random digit + buyPrice + random digit, split after 2 chars with /
-//             → strip first+last digit of ANU section (no slash) = buy price
-//   MP  part: sell price digits reversed
-//   D   part: max discount %
+// Pattern (user's original style + random pad at end):
+//   ANU5 + first digit of buy price + / + rest of buy digits + random digit
+//   MP6  + first digit of sell price + / + rest of sell digits + random digit
+//   D    + max discount %
 //
-// Example: buy=245, sell=490, disc=5 → ANU32/456-MP094-D5
+// Example: buy=245, sell=490, disc=5 → ANU52/453-MP64/907-D5
+// Example: buy=80,  sell=160, disc=10 → ANU58/03-MP61/603-D10
 export function generateItemCode(buyPrice: number, sellPrice: number, maxDiscount = 0): string {
-  const rand = () => String(Math.floor(Math.random() * 9) + 1); // 1–9, never 0
-  const buy = String(Math.round(buyPrice));
+  const rand = () => String(Math.floor(Math.random() * 9) + 1); // 1–9
+  const buy  = String(Math.round(buyPrice));
   const sell = String(Math.round(sellPrice));
 
-  // ANU section: pad + buy + pad, insert / after position 2 (of the full string)
-  const anuRaw = rand() + buy + rand();            // e.g. "3245 6" for buy=245
-  const anuCode = anuRaw.slice(0, 2) + "/" + anuRaw.slice(2); // "32/456"
+  const anuCode = `ANU5${buy[0]}/${buy.slice(1)}${rand()}`;
+  const mpCode  = `MP6${sell[0]}/${sell.slice(1)}${rand()}`;
+  const dCode   = maxDiscount > 0 ? `-D${Math.round(maxDiscount)}` : "";
 
-  // MP section: reverse the sell price digits
-  const mpCode = sell.split("").reverse().join(""); // 490 → "094"
-
-  // D section: max discount
-  const dCode = maxDiscount > 0 ? `-D${Math.round(maxDiscount)}` : "";
-
-  return `ANU${anuCode}-MP${mpCode}${dCode}`;
+  return `${anuCode}-${mpCode}${dCode}`;
 }
