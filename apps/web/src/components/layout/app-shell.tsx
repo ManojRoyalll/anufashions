@@ -1,13 +1,14 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   ShoppingCart, LayoutDashboard, Box, ShoppingBag,
-  Settings, Menu, X, LogOut, ZoomIn, ZoomOut
+  Settings, Menu, X, LogOut, ZoomIn, ZoomOut, RefreshCw
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useAppStore } from "@/store/app";
 import { useLang } from "@/hooks/use-lang";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { useRegisterSW } from "virtual:pwa-register/react";
 
 export default function AppShell() {
   const navigate = useNavigate();
@@ -20,6 +21,35 @@ export default function AppShell() {
   const ZOOM_LEVELS = [80, 90, 100, 110, 125, 150];
   const savedZoom = Number(localStorage.getItem("zoom") || "100");
   const [zoom, setZoom] = useState(savedZoom);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // PWA update detection
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(url, sw) {
+      // Poll for updates every 60 seconds while the app is open
+      if (sw) setInterval(() => sw.update(), 60_000);
+    },
+  });
+
+  // Manual refresh: tell the SW to skip waiting, then reload
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          await reg.unregister();
+        }
+      }
+      // Clear all caches
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } finally {
+      window.location.reload();
+    }
+  };
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${zoom}%`;
@@ -102,6 +132,23 @@ export default function AppShell() {
       )}
 
       <main className="p-3 md:p-6">
+        {/* Update available banner */}
+        {needRefresh && (
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-brand-700 px-4 py-3 text-white shadow-lg">
+            <div className="flex items-center gap-2 min-w-0">
+              <RefreshCw className="h-4 w-4 shrink-0" />
+              <span className="text-sm font-semibold truncate">New update available!</span>
+              <span className="text-xs text-brand-200 hidden sm:inline">Tap to get the latest version.</span>
+            </div>
+            <button
+              onClick={() => updateServiceWorker(true)}
+              className="shrink-0 rounded-xl bg-white text-brand-700 px-4 py-1.5 text-sm font-bold hover:bg-brand-50 transition"
+            >
+              Update Now
+            </button>
+          </div>
+        )}
+
         {/* Header — compact, mobile-friendly */}
         <header className="mb-4 flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2 backdrop-blur-sm shadow-sm">
           <button className="md:hidden p-1.5 rounded-xl hover:bg-brand-50" onClick={() => setMobileOpen(true)}>
@@ -113,8 +160,17 @@ export default function AppShell() {
             {t.welcome}, <span className="font-semibold text-brand-700">{user?.name || "Owner"}</span>
           </p>
 
-          {/* Right: zoom + language */}
+          {/* Right: refresh + zoom + language */}
           <div className="flex items-center gap-1.5 ml-auto">
+            {/* Manual refresh button */}
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Refresh app & clear cache"
+              className="rounded-full border border-brand-200 bg-white p-2 shadow-sm text-slate-500 hover:bg-brand-50 hover:text-brand-700 transition disabled:opacity-50"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+            </button>
             {/* Zoom */}
             <div className="flex items-center gap-0.5 rounded-full border border-brand-200 bg-white px-1 py-1 shadow-sm">
               <button onClick={zoomOut} className="rounded-full p-1 text-slate-500 hover:bg-brand-50">
