@@ -7,7 +7,7 @@ import { Plus, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/store/toast";
 import { useLang } from "@/hooks/use-lang";
-import { inr, generateItemCode, roundUpTo50 } from "@/lib/utils";
+import { inr, generateItemCode, roundUpTo50, getSellMultiplier } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -148,12 +148,13 @@ export default function ProductsPage() {
     }
   }, [modalOpen, editing]);
 
-  // Auto-set sell price = 2× buy price, rounded up to nearest 50
+  // Auto-set sell price = multiplier × buy price, rounded up to nearest 50
   useEffect(() => {
     if (!modalOpen || editing) return;
+    const m = getSellMultiplier();
     const currentSell = sellingPrice;
-    if (purchasePrice > 0 && (currentSell === 0 || currentSell === roundUpTo50(purchasePrice * 2))) {
-      setValue("sellingPrice", roundUpTo50(purchasePrice * 2));
+    if (purchasePrice > 0 && (currentSell === 0 || currentSell === roundUpTo50(purchasePrice * m))) {
+      setValue("sellingPrice", roundUpTo50(purchasePrice * m));
     }
   }, [purchasePrice, modalOpen, editing]);
 

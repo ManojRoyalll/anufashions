@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Drawer } from "@/components/ui/drawer";
 import { TwoPane } from "@/components/ui/two-pane";
-import { inr, generateItemCode, roundUpTo50 } from "@/lib/utils";
+import { inr, generateItemCode, roundUpTo50, getSellMultiplier } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
 import { ImageUpload } from "@/components/ui/image-upload";
 
@@ -89,11 +89,12 @@ export default function BuyPage() {
     setItems((prev) => prev.map((i) => {
       if (i.id !== id) return i;
       const updated = { ...i, [field]: val };
-      // Auto-set sell price = 2× buy price, rounded up to nearest 50
+      // Auto-set sell price = multiplier × buy price, rounded up to nearest 50
       if (field === "buyPrice") {
         const buy = Number(val);
-        if (buy > 0 && (!i.sellPrice || Number(i.sellPrice) === roundUpTo50(Number(i.buyPrice) * 2))) {
-          updated.sellPrice = String(roundUpTo50(buy * 2));
+        const m = getSellMultiplier();
+        if (buy > 0 && (!i.sellPrice || Number(i.sellPrice) === roundUpTo50(Number(i.buyPrice) * m))) {
+          updated.sellPrice = String(roundUpTo50(buy * m));
         }
       }
       // Regenerate code whenever buy or sell price changes
@@ -272,8 +273,8 @@ export default function BuyPage() {
       const updated = { ...r, [field]: val };
       if (field === "buyPrice") {
         const buy = Number(val);
-        if (buy > 0 && (!r.sellPrice || Number(r.sellPrice) === Number(r.buyPrice) * 2)) {
-          updated.sellPrice = String(buy * 2);
+        if (buy > 0 && (!r.sellPrice || Number(r.sellPrice) === Number(r.buyPrice) * getSellMultiplier())) {
+          updated.sellPrice = String(roundUpTo50(buy * getSellMultiplier()));
         }
       }
       if (field === "buyPrice" || field === "sellPrice" || field === "maxDiscount") {

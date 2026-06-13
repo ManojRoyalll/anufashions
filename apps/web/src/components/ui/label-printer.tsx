@@ -22,7 +22,7 @@ const LABEL_PRESETS: LabelSize[] = [
   { label: "50×30mm",                    w: 50,  h: 30  },
 ];
 
-const DEFAULT_SIZE = LABEL_PRESETS[5]; // 50×30 (Sezink Josh default roll)
+const DEFAULT_SIZE = LABEL_PRESETS[1]; // 100×50mm (Josh Standard) — perfect fit confirmed
 
 // ── LAYOUT TYPE ───────────────────────────────────────────────────────────────
 type FieldCfg = { visible: boolean; x: number; y: number; fontSize: number; bold: boolean };
