@@ -44,10 +44,11 @@ export default function InvoicesPage() {
   const [saving, setSaving] = useState(false);
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<PurchaseRecord | null>(null);
-  const [editMode, setEditMode] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [editInvoiceNo, setEditInvoiceNo] = useState("");
   const [editBillAmount, setEditBillAmount] = useState("");
   const [editTransport, setEditTransport] = useState("");
+  const [editDate, setEditDate] = useState("");
   const [editPhoto, setEditPhoto] = useState<string | undefined>();
   const [editSaving, setEditSaving] = useState(false);
 
@@ -115,7 +116,8 @@ export default function InvoicesPage() {
     setEditBillAmount(record.invoiceBillAmount ? String(record.invoiceBillAmount) : "");
     setEditTransport(record.transportCost ? String(record.transportCost) : "");
     setEditPhoto(record.billPhoto || undefined);
-    setEditMode(true);
+    setEditDate(record.purchaseDate ? new Date(record.purchaseDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setEditOpen(true);
   };
 
   const saveEditRecord = async () => {
@@ -128,6 +130,7 @@ export default function InvoicesPage() {
       }
       await api.put(`/purchases/${detailRecord.id}`, {
         invoiceNo: editInvoiceNo || detailRecord.invoiceNo,
+        purchaseDate: editDate ? new Date(editDate).toISOString() : detailRecord.purchaseDate,
         invoiceBillAmount: editBillAmount ? String(Number(editBillAmount)) : null,
         transportCost: editTransport ? String(Number(editTransport)) : "0",
         billPhoto: photoUrl || null,
@@ -138,7 +141,7 @@ export default function InvoicesPage() {
       const h = await api.get("/purchases");
       const updated = h.data.find((p: PurchaseRecord) => p.id === detailRecord.id);
       if (updated) setDetailRecord(updated);
-      setEditMode(false);
+      setEditOpen(false);
     } catch { show("Error saving", "error"); }
     finally { setEditSaving(false); }
   };
@@ -328,11 +331,11 @@ export default function InvoicesPage() {
 
       {/* ── INVOICE DETAIL DRAWER (read-only) ── */}
       <Drawer
-        open={!!detailRecord}
-        onClose={() => { setDetailRecord(null); setEditMode(false); }}
-        title={editMode ? "Edit Invoice" : `Invoice — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`}
+        open={!!detailRecord && !editOpen}
+        onClose={() => { setDetailRecord(null); }}
+        title={`Invoice — ${detailRecord?.invoiceNo || detailRecord?.supplier?.name || "Details"}`}
       >
-        {detailRecord && !editMode && (
+        {detailRecord && (
           <>
             <div className="flex gap-2">
               <Button variant="secondary" className="flex-1" onClick={() => openEditRecord(detailRecord)}>
@@ -365,19 +368,95 @@ export default function InvoicesPage() {
             )}
           </>
         )}
-        {detailRecord && editMode && (
+      </Drawer>
+
+      {/* ── EDIT INVOICE TWO-PANE ── */}
+      <TwoPane
+        open={editOpen && !!detailRecord}
+        onClose={() => setEditOpen(false)}
+        title={`Edit Invoice — ${detailRecord?.supplier?.name || detailRecord?.invoiceNo || ""}`}
+        leftLabel="Edit Details"
+        rightLabel="Invoice Items"
+        leftPane={detailRecord ? (
           <div className="space-y-4">
-            <div><p className="text-xs font-semibold text-brand-700 mb-1">Invoice No</p><input value={editInvoiceNo} onChange={(e) => setEditInvoiceNo(e.target.value)} placeholder="INV-2026-001" autoComplete="off" className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" /></div>
-            <div><p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹)</p><input type="number" value={editBillAmount} onChange={(e) => setEditBillAmount(e.target.value)} placeholder="0" className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" /></div>
-            <div><p className="text-xs font-semibold text-brand-700 mb-1">Transport Cost (₹)</p><input type="number" value={editTransport} onChange={(e) => setEditTransport(e.target.value)} placeholder="0" className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" /></div>
-            <div><p className="text-xs font-semibold text-brand-700 mb-1">Bill Photo</p><ImageUpload value={editPhoto} onChange={setEditPhoto} /></div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Date</p>
+              <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)}
+                className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Supplier</p>
+              <div className="rounded-xl bg-brand-50 px-3 py-2.5 text-sm font-medium text-brand-900">
+                {detailRecord.supplier?.name ?? "—"}
+                <span className="ml-1 text-xs text-slate-400 font-normal">(cannot change)</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Invoice No</p>
+              <input value={editInvoiceNo} onChange={(e) => setEditInvoiceNo(e.target.value)} placeholder="INV-2026-001" autoComplete="off"
+                className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Invoice Bill Amount (₹)</p>
+              <input type="number" value={editBillAmount} onChange={(e) => setEditBillAmount(e.target.value)} placeholder="0"
+                className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Transport Cost (₹)</p>
+              <input type="number" value={editTransport} onChange={(e) => setEditTransport(e.target.value)} placeholder="0"
+                className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+            </div>
+            {(editBillAmount || editTransport) && (
+              <div className="rounded-xl bg-terra-50 px-4 py-3 text-sm flex justify-between font-bold text-terra-800">
+                <span>Total Paid</span>
+                <span>₹{((Number(editBillAmount) || 0) + (Number(editTransport) || 0)).toLocaleString("en-IN")}</span>
+              </div>
+            )}
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-1">Bill Photo / బిల్లు ఫోటో</p>
+              <ImageUpload value={editPhoto} onChange={setEditPhoto} />
+              {editPhoto && <p className="text-xs text-slate-400 mt-1">Photo attached ✓</p>}
+            </div>
             <div className="flex gap-2 pt-2">
-              <Button variant="secondary" className="flex-1" onClick={() => setEditMode(false)}>Cancel</Button>
-              <Button className="flex-1" onClick={saveEditRecord} disabled={editSaving}>{editSaving ? "Saving..." : "Save Changes"}</Button>
+              <Button variant="secondary" className="flex-1" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button className="flex-1" onClick={saveEditRecord} disabled={editSaving}>
+                {editSaving ? "Saving..." : "Save Changes"}
+              </Button>
             </div>
           </div>
-        )}
-      </Drawer>
+        ) : null}
+        rightPane={detailRecord ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-brand-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Current Total</p>
+                <p className="font-bold text-xl text-terra-700">{inr(Number(detailRecord.totalAmount))}</p>
+              </div>
+              <div className="bg-brand-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Items</p>
+                <p className="font-bold text-xl text-brand-900">{detailRecord.items?.length ?? 0}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">Items in this Invoice</p>
+              <div className="space-y-1.5">
+                {(detailRecord.items ?? []).map((item: any, i: number) => (
+                  <div key={item.id ?? i} className="flex items-center justify-between rounded-xl bg-white border border-brand-100 px-3 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-brand-900 truncate">{item.product?.name ?? "—"}</p>
+                      <p className="text-xs text-slate-500">{item.product?.code}</p>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.costPrice))}</p>
+                      <p className="text-xs text-brand-700 font-bold">{inr(Number(item.lineTotal ?? Number(item.costPrice) * item.quantity))}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      />
     </div>
   );
 }
