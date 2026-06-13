@@ -66,7 +66,7 @@ export default function SuppliersPage() {
   };
 
   const columns = [
-    { key: "name", label: t.name, sortable: true },
+    { key: "name", label: t.name, sortable: true, sticky: true },
     { key: "phone", label: t.phone },
     { key: "email", label: t.email },
     { key: "address", label: t.address },

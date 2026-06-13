@@ -40,6 +40,21 @@ body {
   @apply min-h-screen bg-dashboard text-slate-900 antialiased;
 }
 
+/* All text inputs typed in UPPERCASE — numbers, dates, emails excluded */
+input[type="text"]:not([data-no-caps]),
+input:not([type]):not([data-no-caps]),
+input[type="search"]:not([data-no-caps]),
+input[type="tel"]:not([data-no-caps]),
+textarea:not([data-no-caps]) {
+  text-transform: uppercase;
+}
+input[type="text"]::placeholder,
+input:not([type])::placeholder,
+input[type="search"]::placeholder,
+textarea::placeholder {
+  text-transform: none;
+}
+
 .glass {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.62));
   backdrop-filter: blur(12px);

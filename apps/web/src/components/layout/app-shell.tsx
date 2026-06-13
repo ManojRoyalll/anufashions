@@ -134,15 +134,19 @@ export default function AppShell() {
       <main className="p-3 md:p-6">
         {/* Update available banner */}
         {needRefresh && (
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-brand-700 px-4 py-3 text-white shadow-lg">
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-brand-700 px-4 py-3 text-white shadow-lg" style={{ position: "relative", zIndex: 60 }}>
             <div className="flex items-center gap-2 min-w-0">
-              <RefreshCw className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-semibold truncate">New update available!</span>
-              <span className="text-xs text-brand-200 hidden sm:inline">Tap to get the latest version.</span>
+              <RefreshCw className="h-4 w-4 shrink-0 animate-pulse" />
+              <span className="text-sm font-semibold">New update available!</span>
+              <span className="text-xs text-brand-200 hidden sm:inline">Tap to reload with the latest version.</span>
             </div>
             <button
-              onClick={() => updateServiceWorker(true)}
-              className="shrink-0 rounded-xl bg-white text-brand-700 px-4 py-1.5 text-sm font-bold hover:bg-brand-50 transition"
+              onClick={async () => {
+                try { await updateServiceWorker(true); } catch { /* ignore */ }
+                // Always do a hard reload to guarantee fresh version
+                setTimeout(() => window.location.reload(), 300);
+              }}
+              className="shrink-0 rounded-xl bg-white text-brand-700 px-4 py-2 text-sm font-bold hover:bg-brand-50 active:bg-brand-100 transition touch-manipulation"
             >
               Update Now
             </button>

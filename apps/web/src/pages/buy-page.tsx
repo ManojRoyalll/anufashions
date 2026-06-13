@@ -19,6 +19,8 @@ type ItemRow = {
   buyPrice: string; sellPrice: string; maxDiscount: string; quantity: string;
 };
 
+const CATEGORY_PRESETS = ["SAREE", "BLOUSE", "SILK SAREE", "COTTON SAREE", "FANCY SAREE", "KALAMKARI SAREE", "WORK SAREE", "DAILY WEAR"];
+
 function emptyItem(): ItemRow {
   return { id: Math.random().toString(36).slice(2), title: "", categoryName: "", itemCode: "", buyPrice: "", sellPrice: "", maxDiscount: "", quantity: "" };
 }
@@ -525,35 +527,62 @@ export default function BuyPage() {
                   const profit = sell - buy;
                   return (
                     <div key={item.id} className="bg-brand-50 rounded-xl p-3 space-y-2">
+                      {/* Row: Name + delete */}
                       <div className="flex items-start gap-2">
                         <div className="flex-1">
-                          <p className="text-xs font-semibold text-brand-600 mb-1">Item Name</p>
+                          <p className="text-xs font-semibold text-brand-600 mb-1">Item Name *</p>
                           <Input placeholder="Saree / item name" value={item.title} onChange={(e) => updateItem(item.id, "title", e.target.value)} autoComplete="off" />
                         </div>
                         <button onClick={() => items.length > 1 ? removeItem(item.id) : undefined} className={`mt-5 p-2 rounded-xl ${items.length > 1 ? "text-red-400 hover:bg-red-100" : "text-slate-200"}`}>
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
+
+                      {/* Category — preset chips + free input */}
                       <div>
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Code <span className="text-slate-400 font-normal">(auto-generated)</span></p>
-                        <Input placeholder="e.g. ANU32/456-MP094-D5" value={item.itemCode} onChange={(e) => updateItem(item.id, "itemCode", e.target.value)} autoComplete="off" />
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Category *</p>
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {CATEGORY_PRESETS.map((cat) => (
+                            <button
+                              key={cat} type="button"
+                              onClick={() => updateItem(item.id, "categoryName", cat)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+                                item.categoryName === cat
+                                  ? "bg-brand-700 text-white border-brand-700"
+                                  : "bg-white text-brand-700 border-brand-200 hover:border-brand-400"
+                              }`}
+                            >{cat}</button>
+                          ))}
+                        </div>
+                        <Input
+                          placeholder="Or type custom category..."
+                          value={item.categoryName}
+                          onChange={(e) => updateItem(item.id, "categoryName", e.target.value)}
+                          autoComplete="off"
+                          list={`cats-${item.id}`}
+                        />
+                        <datalist id={`cats-${item.id}`}>{existingCategories.filter(c => !CATEGORY_PRESETS.includes(c.name)).map((c) => <option key={c.id} value={c.name} />)}</datalist>
                       </div>
-                      <div>
-                        <p className="text-xs font-semibold text-brand-600 mb-1">Category</p>
-                        <Input placeholder="e.g. Cotton Sarees" value={item.categoryName} onChange={(e) => updateItem(item.id, "categoryName", e.target.value)} autoComplete="off" list={`cats-${item.id}`} />
-                        <datalist id={`cats-${item.id}`}>{existingCategories.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-                      </div>
+
+                      {/* Buy / Sell / Qty / Discount */}
                       <div className="grid grid-cols-2 gap-2">
-                        <div><p className="text-xs font-semibold text-brand-600 mb-1">Buy ₹</p><Input type="number" placeholder="0" value={item.buyPrice} onChange={(e) => updateItem(item.id, "buyPrice", e.target.value)} /></div>
+                        <div><p className="text-xs font-semibold text-brand-600 mb-1">Buy ₹ *</p><Input type="number" placeholder="0" value={item.buyPrice} onChange={(e) => updateItem(item.id, "buyPrice", e.target.value)} /></div>
                         <div><p className="text-xs font-semibold text-brand-600 mb-1">Sell ₹</p><Input type="number" placeholder="0" value={item.sellPrice} onChange={(e) => updateItem(item.id, "sellPrice", e.target.value)} /></div>
+                        <div><p className="text-xs font-semibold text-brand-600 mb-1">Qty *</p><Input type="number" placeholder="1" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", e.target.value)} /></div>
                         <div><p className="text-xs font-semibold text-brand-600 mb-1">Max Disc %</p><Input type="number" placeholder="0" value={item.maxDiscount} onChange={(e) => updateItem(item.id, "maxDiscount", e.target.value)} /></div>
-                        <div><p className="text-xs font-semibold text-brand-600 mb-1">Qty</p><Input type="number" placeholder="1" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", e.target.value)} /></div>
                       </div>
+
                       {buy > 0 && sell > 0 && (
                         <p className={`text-xs font-semibold ${profit >= 0 ? "text-brand-600" : "text-terra-500"}`}>
                           Profit: {inr(profit)} ({buy > 0 ? ((profit / buy) * 100).toFixed(1) : 0}%)
                         </p>
                       )}
+
+                      {/* Code — auto-generated, shown at bottom */}
+                      <div>
+                        <p className="text-xs font-semibold text-brand-600 mb-1">Code <span className="text-slate-400 font-normal">(auto-generated)</span></p>
+                        <Input placeholder="Auto-generated from prices" value={item.itemCode} onChange={(e) => updateItem(item.id, "itemCode", e.target.value)} autoComplete="off" />
+                      </div>
                     </div>
                   );
                 })}
