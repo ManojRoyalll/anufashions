@@ -21,26 +21,32 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
       <div
         className={cn(
-          "relative z-10 max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white shadow-premium",
+          // Fill up to 96% of screen height, flex column so header is sticky
+          "relative z-10 w-full flex flex-col bg-white rounded-2xl shadow-premium",
+          "max-h-[96vh]",
           size === "sm" && "max-w-sm",
           size === "md" && "max-w-lg",
           size === "lg" && "max-w-2xl"
         )}
       >
-        <div className="flex items-center justify-between border-b border-brand-100 px-6 py-4">
-          <h2 className="text-lg font-bold text-brand-900">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-500 hover:bg-brand-50">
+        {/* Sticky header — always visible */}
+        <div className="flex items-center justify-between border-b border-brand-100 px-4 sm:px-6 py-3 sm:py-4 shrink-0">
+          <h2 className="text-base sm:text-lg font-bold text-brand-900 truncate pr-3">{title}</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-brand-50 shrink-0">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        {/* Scrollable body — header stays put */}
+        <div className="overflow-y-auto overscroll-contain flex-1 px-4 sm:px-6 py-4 sm:py-5">
+          {children}
+        </div>
       </div>
     </div>
   );

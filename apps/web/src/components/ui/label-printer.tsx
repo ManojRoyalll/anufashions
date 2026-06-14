@@ -403,24 +403,24 @@ export function LabelPrinterItem({ product }: { product: Product }) {
 
       {/* Simple full-screen modal — mom-friendly: preview on top, controls below */}
       <Modal open={open} onClose={() => { setOpen(false); setEditLayout(false); }} title={`Label — ${product.name}`} size="lg">
-        <div className="space-y-5">
+        <div className="space-y-4">
 
-          {/* ── BIG LIVE PREVIEW ── */}
-          <div className="flex justify-center bg-brand-50 rounded-2xl p-4">
+          {/* ── LIVE PREVIEW — capped height so it never pushes content off screen ── */}
+          <div className="flex justify-center bg-brand-50 rounded-2xl p-3 max-h-48 overflow-hidden">
             {qr ? (
               <CanvasPreview product={product} qr={qr} size={labelSize} layout={layout} />
             ) : (
-              <div className="h-32 w-full bg-brand-100 rounded-xl animate-pulse" />
+              <div className="h-24 w-full bg-brand-100 rounded-xl animate-pulse" />
             )}
           </div>
 
           {/* ── ITEM INFO ── */}
-          <div className="text-center">
-            <p className="font-bold text-brand-900 text-lg">{product.name}</p>
+          <div className="text-center py-1">
+            <p className="font-bold text-brand-900 text-lg leading-tight">{product.name}</p>
             <p className="text-sm text-slate-500">{inr(product.sellingPrice)} · Stock: {product.quantity}</p>
           </div>
 
-          {/* ── LABEL SIZE — simple chips ── */}
+          {/* ── LABEL SIZE ── */}
           <div>
             <p className="text-sm font-bold text-brand-700 mb-2">Label Size</p>
             <div className="flex flex-wrap gap-2">
