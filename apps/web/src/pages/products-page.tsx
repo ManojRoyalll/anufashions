@@ -250,27 +250,47 @@ export default function ProductsPage() {
       />
 
       {/* ── Stats cards ── */}
+      {/* ── Stats cards — click to filter ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="rounded-2xl bg-white shadow-sm border border-brand-100 p-4">
-          <p className="text-xs text-slate-500 font-medium">Total Items</p>
-          <p className="text-2xl font-bold text-brand-900 mt-1">{products.length}</p>
-        </div>
-        <div className="rounded-2xl bg-white shadow-sm border border-brand-100 p-4">
-          <p className="text-xs text-slate-500 font-medium">Total Pieces</p>
-          <p className="text-2xl font-bold text-brand-700 mt-1">{totalPieces.toLocaleString("en-IN")}</p>
-        </div>
+        <button
+          onClick={() => { setFilterStatus(""); setShowFilters(false); }}
+          className={`rounded-2xl shadow-sm border p-4 text-left transition hover:shadow-md ${!filterStatus ? "bg-brand-700 border-brand-700" : "bg-white border-brand-100 hover:border-brand-300"}`}
+        >
+          <p className={`text-xs font-medium ${!filterStatus ? "text-brand-200" : "text-slate-500"}`}>Total Items</p>
+          <p className={`text-2xl font-bold mt-1 ${!filterStatus ? "text-white" : "text-brand-900"}`}>{products.length}</p>
+          <p className={`text-xs mt-0.5 ${!filterStatus ? "text-brand-200" : "text-slate-400"}`}>{totalPieces.toLocaleString("en-IN")} pcs</p>
+        </button>
         <div className="rounded-2xl bg-white shadow-sm border border-brand-100 p-4">
           <p className="text-xs text-slate-500 font-medium">Inventory Value</p>
           <p className="text-2xl font-bold text-brand-700 mt-1">{inr(inventoryValue)}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{totalPieces} pieces</p>
         </div>
-        <div className={`rounded-2xl shadow-sm border p-4 ${lowCount > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-brand-100"}`}>
-          <p className="text-xs text-slate-500 font-medium">Low Stock</p>
-          <p className={`text-2xl font-bold mt-1 ${lowCount > 0 ? "text-amber-600" : "text-slate-400"}`}>{lowCount}</p>
-        </div>
-        <div className={`rounded-2xl shadow-sm border p-4 ${outCount > 0 ? "bg-red-50 border-red-200" : "bg-white border-brand-100"}`}>
-          <p className="text-xs text-slate-500 font-medium">Out of Stock</p>
-          <p className={`text-2xl font-bold mt-1 ${outCount > 0 ? "text-red-600" : "text-slate-400"}`}>{outCount}</p>
-        </div>
+        <button
+          onClick={() => { setFilterStatus("IN_STOCK"); setShowFilters(false); }}
+          className={`rounded-2xl shadow-sm border p-4 text-left transition hover:shadow-md ${filterStatus === "IN_STOCK" ? "bg-brand-700 border-brand-700" : "bg-white border-brand-100 hover:border-brand-300"}`}
+        >
+          <p className={`text-xs font-medium ${filterStatus === "IN_STOCK" ? "text-brand-200" : "text-slate-500"}`}>In Stock</p>
+          <p className={`text-2xl font-bold mt-1 ${filterStatus === "IN_STOCK" ? "text-white" : "text-brand-700"}`}>
+            {products.filter(p => p.stockStatus === "IN_STOCK").length}
+          </p>
+          <p className={`text-xs mt-0.5 ${filterStatus === "IN_STOCK" ? "text-brand-200" : "text-slate-400"}`}>Tap to filter</p>
+        </button>
+        <button
+          onClick={() => { setFilterStatus("LOW_STOCK"); setShowFilters(false); }}
+          className={`rounded-2xl shadow-sm border p-4 text-left transition hover:shadow-md ${filterStatus === "LOW_STOCK" ? "bg-amber-600 border-amber-600" : lowCount > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-brand-100"} `}
+        >
+          <p className={`text-xs font-medium ${filterStatus === "LOW_STOCK" ? "text-amber-100" : "text-slate-500"}`}>Low Stock</p>
+          <p className={`text-2xl font-bold mt-1 ${filterStatus === "LOW_STOCK" ? "text-white" : lowCount > 0 ? "text-amber-600" : "text-slate-400"}`}>{lowCount}</p>
+          <p className={`text-xs mt-0.5 ${filterStatus === "LOW_STOCK" ? "text-amber-200" : "text-slate-400"}`}>≤5 pieces</p>
+        </button>
+        <button
+          onClick={() => { setFilterStatus("OUT_OF_STOCK"); setShowFilters(false); }}
+          className={`rounded-2xl shadow-sm border p-4 text-left transition hover:shadow-md ${filterStatus === "OUT_OF_STOCK" ? "bg-red-600 border-red-600" : outCount > 0 ? "bg-red-50 border-red-200" : "bg-white border-brand-100"}`}
+        >
+          <p className={`text-xs font-medium ${filterStatus === "OUT_OF_STOCK" ? "text-red-100" : "text-slate-500"}`}>Out of Stock</p>
+          <p className={`text-2xl font-bold mt-1 ${filterStatus === "OUT_OF_STOCK" ? "text-white" : outCount > 0 ? "text-red-600" : "text-slate-400"}`}>{outCount}</p>
+          <p className={`text-xs mt-0.5 ${filterStatus === "OUT_OF_STOCK" ? "text-red-200" : "text-slate-400"}`}>Tap to filter</p>
+        </button>
       </div>
 
       <Card>

@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   ShoppingCart, LayoutDashboard, Box, ShoppingBag,
-  Settings, Menu, X, LogOut, ZoomIn, ZoomOut, RefreshCw
+  Settings, Menu, X, LogOut, ZoomIn, ZoomOut, RefreshCw, ClipboardList
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useAppStore } from "@/store/app";
@@ -63,6 +63,7 @@ export default function AppShell() {
     { to: "/", label: t.sell, sub: "అమ్మకం", icon: ShoppingCart },
     { to: "/buy", label: "Buy Stock", sub: "సరుకు కొనుగోలు", icon: ShoppingBag },
     { to: "/stock", label: t.myStock, sub: "నా సరుకు", icon: Box },
+    { to: "/sales-history", label: "Sales History", sub: "అమ్మకాల చరిత్ర", icon: ClipboardList },
     { to: "/overview", label: t.overview, sub: "సారాంశం", icon: LayoutDashboard },
     { to: "/settings", label: "Settings", sub: "సెట్టింగులు", icon: Settings },
   ];

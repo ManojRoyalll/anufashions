@@ -78,7 +78,12 @@ export default function SalesPage() {
   // Edit sale state
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
   const [editPayment, setEditPayment] = useState("CASH");
+  const [editCustomerName, setEditCustomerName] = useState("");
+  const [editCustomerPhone, setEditCustomerPhone] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+
+  // Ref for the search input so Add Bill can focus it
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const loadProducts = () => api.get("/products").then((r) => setProducts(r.data));
   const loadCustomers = () => api.get("/customers").then((r) => setAllCustomers(r.data));
@@ -262,16 +267,33 @@ export default function SalesPage() {
   const openEditSale = (sale: SaleRecord) => {
     setEditingSale(sale);
     setEditPayment(sale.paymentMethod);
+    setEditCustomerName(sale.customer?.name ?? "");
+    setEditCustomerPhone(sale.customer?.phone ?? "");
   };
 
   const saveEditSale = async () => {
     if (!editingSale) return;
     setEditSaving(true);
     try {
+      // Update payment method
       await api.put(`/sales/${editingSale.id}`, {
         paymentMethod: editPayment,
         updatedAt: new Date().toISOString(),
       });
+      // If customer name was added/changed and sale had no customer, create one
+      if (editCustomerName.trim() && !editingSale.customer) {
+        const phone = editCustomerPhone.trim();
+        const existing = phone ? allCustomers.find(c => c.phone === phone) : null;
+        let custId: string;
+        if (existing) {
+          custId = existing.id;
+        } else {
+          const res = await api.post("/customers", { name: editCustomerName.trim(), phone: phone || undefined });
+          custId = res.data.id;
+        }
+        await api.put(`/sales/${editingSale.id}`, { customerId: custId, updatedAt: new Date().toISOString() });
+        await loadCustomers();
+      }
       show("Sale updated ✓");
       setEditingSale(null);
       loadHistory(period);
@@ -347,10 +369,39 @@ export default function SalesPage() {
         {editingSale && (
           <div className="space-y-4">
             <div className="bg-brand-50 rounded-xl p-3 space-y-1 text-sm">
-              <p className="font-semibold text-brand-900">{editingSale.items.reduce((s, i) => s + i.quantity, 0)} items</p>
+              <p className="font-semibold text-brand-900">{editingSale.items.reduce((s, i) => s + i.quantity, 0)} items · {inr(Number(editingSale.totalAmount))}</p>
               <p className="text-slate-500">{new Date(editingSale.saleDate).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</p>
-              <p className="font-bold text-brand-800 text-base">{inr(Number(editingSale.totalAmount))}</p>
             </div>
+
+            {/* Customer — editable, pre-filled if exists */}
+            <div>
+              <p className="text-xs font-semibold text-brand-700 mb-2">
+                Customer {editingSale.customer && <span className="text-slate-400 font-normal">(already assigned)</span>}
+              </p>
+              {editingSale.customer ? (
+                <div className="rounded-xl bg-brand-50 px-3 py-2.5 text-sm">
+                  <p className="font-semibold text-brand-900">{editingSale.customer.name}</p>
+                  {editingSale.customer.phone && <p className="text-xs text-slate-500">{editingSale.customer.phone}</p>}
+                  <p className="text-xs text-slate-400 mt-1">Customer already linked — remove and recreate sale to change.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500">Add customer if missed during billing</p>
+                  <input
+                    type="text" placeholder="Customer name" value={editCustomerName}
+                    onChange={(e) => setEditCustomerName(e.target.value)}
+                    className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
+                  />
+                  <input
+                    type="tel" placeholder="Mobile number (optional)" value={editCustomerPhone}
+                    onChange={(e) => setEditCustomerPhone(e.target.value.replace(/\D/g, ""))}
+                    className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none normal-case"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Payment method */}
             <div>
               <p className="text-xs font-semibold text-brand-700 mb-2">Payment Method</p>
               <div className="grid grid-cols-3 gap-2">
@@ -377,8 +428,15 @@ export default function SalesPage() {
 
         {/* ── SEARCH + SCAN ── */}
         <div className="flex gap-2">
-          <Input placeholder={t.search} value={query}
-            onChange={(e) => setQuery(e.target.value)} className="text-base" autoFocus />
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder={t.search}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+            className="flex-1 rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none text-base"
+          />
           <button onClick={() => setShowScanner(true)}
             className="shrink-0 flex items-center gap-1.5 rounded-xl bg-brand-700 text-white px-4 py-2 text-sm font-bold hover:bg-brand-800 transition">
             <ScanLine className="h-5 w-5" />
@@ -551,9 +609,15 @@ export default function SalesPage() {
                     </button>
                   ))}
                 </div>
-                {/* Add Bill from history */}
+                {/* Add Bill — scroll to search + focus */}
                 <button
-                  onClick={() => { setCart([]); setQuery(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  onClick={() => {
+                    setCart([]); setQuery(""); setCustomDiscount(""); setDiscountChip(0); clearCustomer();
+                    setTimeout(() => {
+                      searchRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      searchRef.current?.focus();
+                    }, 100);
+                  }}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-brand-700 text-white text-xs font-bold hover:bg-brand-800 transition"
                 >
                   + Add Bill
@@ -629,81 +693,116 @@ export default function SalesPage() {
         onClose={() => setDetailSale(null)}
         title={`Sale — ${new Date(detailSale?.saleDate ?? "").toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}`}
       >
-        {detailSale && (
-          <div className="space-y-4">
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-terra-50 rounded-xl p-3">
-                <p className="text-xs text-slate-500">Total Amount</p>
-                <p className="font-bold text-xl text-terra-700">{inr(Number(detailSale.totalAmount))}</p>
+        {detailSale && (() => {
+          const saleSubtotal = detailSale.items.reduce((s, i) => s + i.quantity * Number(i.unitPrice), 0);
+          const saleDiscount = Number(detailSale.discount) || 0;
+          const saleTotal = Number(detailSale.totalAmount);
+          const saleCogs = detailSale.items.reduce((s, i) => s + i.quantity * Number(i.purchasePrice ?? 0), 0);
+          const saleProfit = saleTotal - saleCogs;
+          const saleMargin = saleSubtotal > 0 ? ((saleProfit / saleSubtotal) * 100) : 0;
+          return (
+            <div className="space-y-4">
+              {/* Bill summary — full financial breakdown */}
+              <div className="bg-white border border-brand-100 rounded-xl p-4 space-y-2 font-mono text-sm">
+                <p className="font-bold text-brand-900 text-center text-base">Anu Fashions</p>
+                <hr className="border-dashed border-brand-200" />
+                {detailSale.items.map((item, i) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="truncate flex-1 mr-2">{item.product?.name ?? "—"} ×{item.quantity}</span>
+                    <span className="font-medium">{inr(item.quantity * Number(item.unitPrice))}</span>
+                  </div>
+                ))}
+                <hr className="border-dashed border-brand-200" />
+                {saleDiscount > 0 && (
+                  <>
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>Subtotal</span><span>{inr(saleSubtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-amber-600 font-semibold">
+                      <span>Discount</span><span>− {inr(saleDiscount)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between font-black text-base border-t border-brand-200 pt-1">
+                  <span>TOTAL</span><span className="text-terra-700">{inr(saleTotal)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>Payment</span>
+                  <span>{detailSale.paymentMethod === "CASH" ? "💵 Cash" : detailSale.paymentMethod === "UPI" ? "📱 UPI" : "💳 Card"}</span>
+                </div>
               </div>
-              <div className="bg-brand-50 rounded-xl p-3">
-                <p className="text-xs text-slate-500">Payment</p>
-                <p className="font-bold text-brand-900 text-xl">
-                  {detailSale.paymentMethod === "CASH" ? "💵 Cash" : detailSale.paymentMethod === "UPI" ? "📱 UPI" : "💳 Card"}
-                </p>
+
+              {/* Profit card */}
+              <div className={`rounded-xl p-3 flex items-center justify-between ${saleProfit >= 0 ? "bg-brand-50" : "bg-red-50"}`}>
+                <div>
+                  <p className="text-xs text-slate-500">Profit on this bill</p>
+                  <p className={`font-bold text-xl ${saleProfit >= 0 ? "text-brand-700" : "text-red-600"}`}>{inr(saleProfit)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500">Margin</p>
+                  <p className={`font-bold text-lg ${saleProfit >= 0 ? "text-brand-600" : "text-red-500"}`}>{saleMargin.toFixed(1)}%</p>
+                </div>
               </div>
+
+              {/* Customer */}
               {detailSale.customer && (
-                <div className="bg-brand-50 rounded-xl p-3 col-span-2">
-                  <p className="text-xs text-slate-500">Customer</p>
+                <div className="bg-brand-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500 mb-1">Customer</p>
                   <p className="font-semibold text-brand-900">{detailSale.customer.name}</p>
                   {detailSale.customer.phone && <p className="text-xs text-slate-500">{detailSale.customer.phone}</p>}
                 </div>
               )}
-              {Number(detailSale.discount) > 0 && (
-                <div className="bg-amber-50 rounded-xl p-3 col-span-2">
-                  <p className="text-xs text-slate-500">Discount applied</p>
-                  <p className="font-semibold text-amber-700">− {inr(Number(detailSale.discount))}</p>
-                </div>
-              )}
-            </div>
 
-            {/* Items sold */}
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">
-                Items Sold ({detailSale.items.length})
-              </p>
-              <div className="space-y-2">
-                {detailSale.items.map((item, i) => (
-                  <div key={item.id ?? i} className="bg-white border border-brand-100 rounded-xl px-3 py-2.5">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-brand-900">{item.product?.name ?? "—"}</p>
-                        {item.product?.category?.name && <p className="text-xs text-slate-500">{item.product.category.name}</p>}
-                        {item.product?.supplier?.name && (
-                          <p className="text-xs text-brand-600 font-medium">Supplier: {item.product.supplier.name}</p>
-                        )}
+              {/* Items detail */}
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">
+                  Items Sold ({detailSale.items.length})
+                </p>
+                <div className="space-y-2">
+                  {detailSale.items.map((item, i) => {
+                    const lineProfit = (Number(item.unitPrice) - Number(item.purchasePrice ?? 0)) * item.quantity;
+                    return (
+                      <div key={item.id ?? i} className="bg-white border border-brand-100 rounded-xl px-3 py-2.5">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-brand-900">{item.product?.name ?? "—"}</p>
+                            {item.product?.category?.name && <p className="text-xs text-slate-500">{item.product.category.name}</p>}
+                            {item.product?.supplier?.name && (
+                              <p className="text-xs text-brand-600 font-medium">Supplier: {item.product.supplier.name}</p>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0 ml-3">
+                            <p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.unitPrice))}</p>
+                            <p className="text-xs font-bold text-brand-700">{inr(item.quantity * Number(item.unitPrice))}</p>
+                            {item.purchasePrice && (
+                              <p className="text-xs text-slate-400">Buy: {inr(Number(item.purchasePrice))} · Profit: {inr(lineProfit)}</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0 ml-3">
-                        <p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.unitPrice))}</p>
-                        <p className="text-xs font-bold text-brand-700">{inr(item.quantity * Number(item.unitPrice))}</p>
-                        {item.purchasePrice && (
-                          <p className="text-xs text-slate-400">Buy: {inr(Number(item.purchasePrice))}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { openEditSale(detailSale); setDetailSale(null); }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-brand-700 border border-brand-200 rounded-xl hover:bg-brand-50 transition"
+                >
+                  <Pencil className="h-4 w-4" /> Edit Sale
+                </button>
+                <button
+                  onClick={() => { if (confirm("Delete this sale?")) { deleteSale(detailSale.id); setDetailSale(null); } }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-terra-600 border border-terra-200 rounded-xl hover:bg-terra-50 transition"
+                >
+                  <Trash2 className="h-4 w-4" /> Delete
+                </button>
               </div>
             </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => { openEditSale(detailSale); setDetailSale(null); }}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-brand-700 border border-brand-200 rounded-xl hover:bg-brand-50 transition"
-              >
-                <Pencil className="h-4 w-4" /> Edit Payment
-              </button>
-              <button
-                onClick={() => { if (confirm("Delete this sale?")) { deleteSale(detailSale.id); setDetailSale(null); } }}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-terra-600 border border-terra-200 rounded-xl hover:bg-terra-50 transition"
-              >
-                <Trash2 className="h-4 w-4" /> Delete Sale
-              </button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </Drawer>
 
       {/* ── STICKY BOTTOM BAR — always visible when cart has items ── */}

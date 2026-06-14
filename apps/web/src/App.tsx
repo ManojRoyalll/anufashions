@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "@/components/layout/app-shell";
 import SalesPage from "@/pages/sales-page";
+import SalesHistoryPage from "@/pages/sales-history-page";
 import BuyPage from "@/pages/buy-page";
 import ProductsPage from "@/pages/products-page";
 import OverviewPage from "@/pages/overview-page";
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/stock" element={<ProductsPage />} />
         <Route path="/overview" element={<OverviewPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/sales-history" element={<SalesHistoryPage />} />
         {/* Legacy routes kept working */}
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/products" element={<ProductsPage />} />
