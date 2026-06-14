@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +35,7 @@ export function TwoPane({
   const leftW  = split === "40/60" ? "sm:w-[40%]" : split === "50/50" ? "sm:w-[50%]" : "sm:w-[45%]";
   const rightW = split === "40/60" ? "sm:w-[60%]" : split === "50/50" ? "sm:w-[50%]" : "sm:w-[55%]";
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-black/50 backdrop-blur-sm">
       <div className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl flex flex-col"
         style={{ height: "min(96vh, 900px)" }}>
@@ -95,6 +96,7 @@ export function TwoPane({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
