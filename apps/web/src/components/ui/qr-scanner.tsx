@@ -74,6 +74,50 @@ export function QRScanner({ onScan, onClose, continuous = false }: Props) {
     };
   }, [onScan, continuous]);
 
+  // Continuous mode: render ONLY the camera feed — no overlay, no close button
+  // The parent (ContinuousScanScreen) owns the full-screen layout and close logic
+  if (continuous) {
+    return (
+      <div className="w-full bg-black">
+        {error ? (
+          <div className="mx-4 my-4 bg-terra-50 rounded-xl p-4 text-sm text-terra-700">{error}</div>
+        ) : (
+          <div className="relative">
+            <video ref={videoRef} className="w-full" playsInline muted />
+            {/* Scan frame */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className={`w-44 h-44 border-2 rounded-xl transition-all duration-300 ${
+                lastScanned ? "border-green-400 bg-green-400/10" : "border-white/80"
+              }`}>
+                <div className={`absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 rounded-tl-lg ${lastScanned ? "border-green-400" : "border-brand-400"}`} />
+                <div className={`absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 rounded-tr-lg ${lastScanned ? "border-green-400" : "border-brand-400"}`} />
+                <div className={`absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 rounded-bl-lg ${lastScanned ? "border-green-400" : "border-brand-400"}`} />
+                <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 rounded-br-lg ${lastScanned ? "border-green-400" : "border-brand-400"}`} />
+                {lastScanned && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-green-500 rounded-full p-2">
+                      <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="absolute bottom-2 left-0 right-0 text-center">
+              {lastScanned
+                ? <span className="text-green-400 font-bold text-sm">✓ Added!</span>
+                : <span className="text-white/60 text-xs">Point camera at label QR code</span>
+              }
+            </div>
+          </div>
+        )}
+        <canvas ref={canvasRef} className="hidden" />
+      </div>
+    );
+  }
+
+  // Single-scan mode: full-screen overlay with its own close button
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center">
       <div className="relative w-full max-w-sm">

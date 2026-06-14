@@ -264,7 +264,7 @@ export default function SalesPage() {
 
           {/* Camera — takes top portion */}
           <div className="shrink-0">
-            <QRScanner onScan={handleContinuousScan} onClose={() => { setScanList([]); setShowScanner(false); }} continuous />
+            <QRScanner onScan={handleContinuousScan} onClose={() => setShowScanner(false)} continuous />
           </div>
 
           {/* Scanned items list */}
