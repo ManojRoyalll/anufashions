@@ -52,11 +52,9 @@ function defaultLayout(size: LabelSize): LabelLayout {
 
 function lsKey(size: LabelSize) { return `label-layout-${size.w}x${size.h}`; }
 
+// Always start from the default layout — localStorage only used when user explicitly edits
+// This ensures every label looks the same as the reference design by default
 function loadLayout(size: LabelSize): LabelLayout {
-  try {
-    const raw = localStorage.getItem(lsKey(size));
-    if (raw) return JSON.parse(raw) as LabelLayout;
-  } catch { /* ignore */ }
   return defaultLayout(size);
 }
 
@@ -360,8 +358,14 @@ export function LabelPrinterItem({ product }: { product: Product }) {
 
   const openPane = async () => {
     // Pre-generate QR when opening
-    const data = `${displayCode(product.code)} | ${product.name} | ${inr(product.sellingPrice)}`;
-    const url = await QRCode.toDataURL(data, { width: 200, margin: 1, color: { dark: "#000", light: "#fff" } });
+    // QR encodes ONLY the item code — short string = fast scan
+    // errorCorrectionLevel L = lowest redundancy = lightest QR = fastest capture
+    const data = displayCode(product.code);
+    const url = await QRCode.toDataURL(data, {
+      width: 200, margin: 0,
+      errorCorrectionLevel: "L",
+      color: { dark: "#000", light: "#fff" }
+    });
     setQr(url);
     setCount(product.quantity || 1);
     setOpen(true);

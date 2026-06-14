@@ -91,10 +91,38 @@ export default function SalesPage() {
   // QR scan
   const handleQRScan = (data: string) => {
     setShowScanner(false);
-    const code = data.split("|")[0].trim();
-    const found = products.find(p => p.code === code || p.name.toLowerCase() === code.toLowerCase());
+    // QR may contain:
+    //   New format: just the code  e.g. "ANU52/403-MP64/903-D5"
+    //   Old format: "code | name | price"  (pipe-separated)
+    const rawCode = data.split("|")[0].trim();
+
+    // 1. Exact match on code field
+    let found = products.find(p => p.code === rawCode);
+
+    // 2. Old ANU- serial style: "ANU-24/5 MP5349/0053" — try matching the stored code directly
+    if (!found && rawCode.startsWith("ANU-")) {
+      found = products.find(p => p.code === rawCode);
+    }
+
+    // 3. Partial/normalised match — strip spaces, hyphens, compare normalised
+    if (!found) {
+      const norm = (s: string) => s.replace(/[\s\-]/g, "").toLowerCase();
+      found = products.find(p => norm(p.code) === norm(rawCode));
+    }
+
+    // 4. Name match (old QRs that encoded just the name)
+    if (!found) {
+      found = products.find(p => p.name.toLowerCase() === rawCode.toLowerCase());
+    }
+
+    // 5. Code contains the rawCode as substring (handles partial prints)
+    if (!found) {
+      const lc = rawCode.toLowerCase();
+      found = products.find(p => p.code?.toLowerCase().includes(lc) || lc.includes(p.code?.toLowerCase() ?? "__"));
+    }
+
     if (found) { addToCart(found); show(`${found.name} added ✓`); }
-    else show(`Item not found: ${code}`, "error");
+    else show(`Item not found: ${rawCode}`, "error");
   };
 
   // Product search results
