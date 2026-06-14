@@ -3,8 +3,7 @@ import QRCode from "qrcode";
 import { Settings2, Download, FileText, LayoutTemplate, RotateCcw, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TwoPane } from "@/components/ui/two-pane";
-import { Modal } from "@/components/ui/modal";
-import { inr } from "@/lib/utils";
+import { Modal } from "@/components/ui/modal";import { inr } from "@/lib/utils";
 
 type Product = {
   id: string; code: string; name: string;
@@ -401,95 +400,113 @@ export function LabelPrinterItem({ product }: { product: Product }) {
         }
       </button>
 
-      {/* Simple full-screen modal — mom-friendly: preview on top, controls below */}
-      <Modal open={open} onClose={() => { setOpen(false); setEditLayout(false); }} title={`Label — ${product.name}`} size="lg">
-        <div className="space-y-4">
+      {/* TwoPane: left = controls (scrolls), right = preview (fixed, never scrolls) */}
+      <TwoPane
+        open={open}
+        onClose={() => { setOpen(false); setEditLayout(false); }}
+        title={`Label — ${product.name}`}
+        leftLabel="Controls"
+        rightLabel="Preview"
+        rightFixed
+        split="40/60"
+        leftPane={
+          <div className="space-y-4">
 
-          {/* ── LIVE PREVIEW — capped height so it never pushes content off screen ── */}
-          <div className="flex justify-center bg-brand-50 rounded-2xl p-3 max-h-48 overflow-hidden">
-            {qr ? (
-              <CanvasPreview product={product} qr={qr} size={labelSize} layout={layout} />
-            ) : (
-              <div className="h-24 w-full bg-brand-100 rounded-xl animate-pulse" />
-            )}
-          </div>
-
-          {/* ── ITEM INFO ── */}
-          <div className="text-center py-1">
-            <p className="font-bold text-brand-900 text-lg leading-tight">{product.name}</p>
-            <p className="text-sm text-slate-500">{inr(product.sellingPrice)} · Stock: {product.quantity}</p>
-          </div>
-
-          {/* ── LABEL SIZE ── */}
-          <div>
-            <p className="text-sm font-bold text-brand-700 mb-2">Label Size</p>
-            <div className="flex flex-wrap gap-2">
-              {LABEL_PRESETS.map((p) => (
-                <button key={p.label} onClick={() => changeSize(p)}
-                  className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                    labelSize.w === p.w && labelSize.h === p.h
-                      ? "bg-brand-700 text-white" : "bg-white text-brand-700 border border-brand-200 hover:bg-brand-50"
-                  }`}>{p.label}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* ── COUNT — big touch-friendly ── */}
-          <div>
-            <p className="text-sm font-bold text-brand-700 mb-2">How many labels?</p>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setCount(c => Math.max(0, c - 1))}
-                className="w-14 h-14 rounded-2xl bg-brand-50 border-2 border-brand-200 text-brand-700 text-3xl font-bold flex items-center justify-center hover:bg-brand-100 active:bg-brand-200 touch-manipulation">−</button>
-              <div className="flex-1 text-center">
-                <p className="text-4xl font-black text-brand-900">{count}</p>
-                <p className="text-xs text-slate-400">of {product.quantity} in stock</p>
+            {/* Size selector */}
+            <div>
+              <p className="text-sm font-bold text-brand-700 mb-2">Label Size</p>
+              <div className="flex flex-wrap gap-2">
+                {LABEL_PRESETS.map((p) => (
+                  <button key={p.label} onClick={() => changeSize(p)}
+                    className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                      labelSize.w === p.w && labelSize.h === p.h
+                        ? "bg-brand-700 text-white" : "bg-white text-brand-700 border border-brand-200 hover:bg-brand-50"
+                    }`}>{p.label}</button>
+                ))}
               </div>
-              <button onClick={() => setCount(c => Math.min(c + 1, product.quantity))}
-                className="w-14 h-14 rounded-2xl bg-brand-50 border-2 border-brand-200 text-brand-700 text-3xl font-bold flex items-center justify-center hover:bg-brand-100 active:bg-brand-200 touch-manipulation">+</button>
-            </div>
-          </div>
-
-          {/* ── DOWNLOAD — big prominent button ── */}
-          <Button
-            className="w-full py-5 text-xl font-bold rounded-2xl"
-            onClick={downloadPDF}
-            disabled={pdfLoading || count === 0}
-          >
-            <Download className="mr-3 h-6 w-6" />
-            {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""}`}
-          </Button>
-
-          {downloaded && (
-            <p className="text-center text-xs text-green-600 font-semibold">
-              ✓ Label already downloaded
-              <button onClick={() => { setDownloaded(false); try { localStorage.removeItem(`label-downloaded-${product.id}`); } catch { /* */ } }}
-                className="ml-2 underline text-slate-400">mark as not printed</button>
-            </p>
-          )}
-
-          {/* ── ADVANCED: Edit Layout — collapsed, not prominent ── */}
-          <div className="border-t border-brand-100 pt-3">
-            <button onClick={() => setEditLayout(v => !v)}
-              className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-slate-400 hover:text-brand-600 transition">
-              <LayoutTemplate className="h-3.5 w-3.5" />
-              {editLayout ? "Hide layout editor" : "Advanced: Edit Layout"}
-            </button>
-            {editLayout && (
-              <div className="mt-3 space-y-3 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
-                <div className="space-y-2">
-                  <QrRow cfg={layout.qr} onChange={patchQr} xMax={labelSize.w} yMax={labelSize.h} />
-                  <FieldRow label="Shop Name" cfg={layout.shopName} onChange={(p) => patchField("shopName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
-                  <FieldRow label="Item Name" cfg={layout.itemName} onChange={(p) => patchField("itemName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
-                  <FieldRow label="Item Code" cfg={layout.itemCode} onChange={(p) => patchField("itemCode", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
+              <button onClick={() => setShowCustom(v => !v)} className="mt-2 text-xs text-brand-600 flex items-center gap-1">
+                <Settings2 className="h-3 w-3" /> Custom size
+              </button>
+              {showCustom && (
+                <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-brand-100">
+                  <span className="text-xs text-slate-500">W mm:</span>
+                  <input type="number" value={customW} onChange={e => setCustomW(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center normal-case" />
+                  <span className="text-xs text-slate-500">H mm:</span>
+                  <input type="number" value={customH} onChange={e => setCustomH(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center normal-case" />
+                  <button onClick={() => { const w=Number(customW),h=Number(customH); if(w>0&&h>0) changeSize({w,h,label:`${w}×${h}mm`}); }}
+                    className="rounded-lg bg-brand-700 text-white px-3 py-1 text-xs font-semibold">Apply</button>
                 </div>
-                <button onClick={resetLayout} className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-terra-600 border border-terra-200 rounded-xl hover:bg-terra-50 transition">
-                  <RotateCcw className="h-3 w-3" /> Reset to default
-                </button>
+              )}
+            </div>
+
+            {/* Count */}
+            <div>
+              <p className="text-sm font-bold text-brand-700 mb-2">How many labels?</p>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setCount(c => Math.max(0, c - 1))}
+                  className="w-14 h-14 rounded-2xl bg-brand-50 border-2 border-brand-200 text-brand-700 text-3xl font-bold flex items-center justify-center hover:bg-brand-100 active:bg-brand-200 touch-manipulation">−</button>
+                <div className="flex-1 text-center">
+                  <p className="text-4xl font-black text-brand-900">{count}</p>
+                  <p className="text-xs text-slate-400">of {product.quantity}</p>
+                </div>
+                <button onClick={() => setCount(c => Math.min(c + 1, product.quantity))}
+                  className="w-14 h-14 rounded-2xl bg-brand-50 border-2 border-brand-200 text-brand-700 text-3xl font-bold flex items-center justify-center hover:bg-brand-100 active:bg-brand-200 touch-manipulation">+</button>
               </div>
+            </div>
+
+            {/* Download */}
+            <Button className="w-full py-4 text-lg font-bold rounded-2xl" onClick={downloadPDF} disabled={pdfLoading || count === 0}>
+              <Download className="mr-2 h-5 w-5" />
+              {pdfLoading ? "Building…" : `Download ${count} Label${count !== 1 ? "s" : ""}`}
+            </Button>
+
+            {downloaded && (
+              <p className="text-center text-xs text-green-600 font-semibold">
+                ✓ Downloaded
+                <button onClick={() => { setDownloaded(false); try { localStorage.removeItem(`label-downloaded-${product.id}`); } catch { /**/ } }}
+                  className="ml-2 underline text-slate-400">reset</button>
+              </p>
             )}
+
+            {/* Edit Layout — advanced, below the fold */}
+            <div className="border-t border-brand-100 pt-3">
+              <button onClick={() => setEditLayout(v => !v)}
+                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-slate-400 hover:text-brand-600 transition">
+                <LayoutTemplate className="h-3.5 w-3.5" />
+                {editLayout ? "Hide layout editor" : "Edit Layout (Advanced)"}
+              </button>
+              {editLayout && (
+                <div className="mt-3 space-y-3 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
+                  <QrRow cfg={layout.qr} onChange={patchQr} xMax={labelSize.w} yMax={labelSize.h} />
+                  <FieldRow label="Shop Name" cfg={layout.shopName} onChange={p => patchField("shopName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
+                  <FieldRow label="Item Name" cfg={layout.itemName} onChange={p => patchField("itemName", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
+                  <FieldRow label="Item Code" cfg={layout.itemCode} onChange={p => patchField("itemCode", p)} showBold xMax={labelSize.w} yMax={labelSize.h} />
+                  <button onClick={resetLayout} className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-terra-600 border border-terra-200 rounded-xl hover:bg-terra-50 transition">
+                    <RotateCcw className="h-3 w-3" /> Reset to default
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </Modal>
+        }
+        rightPane={
+          /* Preview fills the full height of the right pane and never scrolls */
+          <div className="flex flex-col h-full gap-4">
+            <div className="flex-1 flex items-center justify-center bg-white rounded-2xl border border-brand-100 p-4 min-h-0">
+              {qr ? (
+                <CanvasPreview product={product} qr={qr} size={labelSize} layout={layout} />
+              ) : (
+                <div className="h-24 w-full bg-brand-100 rounded-xl animate-pulse" />
+              )}
+            </div>
+            <div className="shrink-0 text-center">
+              <p className="font-bold text-brand-900">{product.name}</p>
+              <p className="text-xs text-slate-500">{inr(product.sellingPrice)} · {labelSize.w}×{labelSize.h}mm</p>
+              <p className="text-xs text-slate-400 mt-1">Updates live as you adjust ←</p>
+            </div>
+          </div>
+        }
+      />
     </>
   );
 }

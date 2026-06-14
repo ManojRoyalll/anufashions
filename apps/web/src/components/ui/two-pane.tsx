@@ -10,11 +10,17 @@ type TwoPaneProps = {
   rightPane: React.ReactNode;
   leftLabel?: string;
   rightLabel?: string;
+  /** When true, right pane does NOT scroll — preview stays pinned while left scrolls */
+  rightFixed?: boolean;
+  /** Column split, default "45/55" */
+  split?: "40/60" | "45/55" | "50/50";
 };
 
 export function TwoPane({
   open, onClose, title, leftPane, rightPane,
   leftLabel = "Details", rightLabel = "Summary",
+  rightFixed = false,
+  split = "45/55",
 }: TwoPaneProps) {
   useEffect(() => {
     if (!open) return;
@@ -24,6 +30,9 @@ export function TwoPane({
   }, [open, onClose]);
 
   if (!open) return null;
+
+  const leftW  = split === "40/60" ? "sm:w-[40%]" : split === "50/50" ? "sm:w-[50%]" : "sm:w-[45%]";
+  const rightW = split === "40/60" ? "sm:w-[60%]" : split === "50/50" ? "sm:w-[50%]" : "sm:w-[55%]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-black/50 backdrop-blur-sm">
@@ -42,8 +51,9 @@ export function TwoPane({
           </button>
         </div>
 
-        {/* Pane labels — visible from sm (640px) = tablet portrait and up */}
-        <div className="hidden sm:grid sm:grid-cols-[45%_55%] border-b border-brand-100 shrink-0">
+        {/* Pane labels */}
+        <div className="hidden sm:grid border-b border-brand-100 shrink-0"
+          style={{ gridTemplateColumns: split === "40/60" ? "40% 60%" : split === "50/50" ? "50% 50%" : "45% 55%" }}>
           <div className="px-4 py-2 text-xs font-semibold text-brand-600 uppercase tracking-wide border-r border-brand-100">
             {leftLabel}
           </div>
@@ -52,30 +62,34 @@ export function TwoPane({
           </div>
         </div>
 
-        {/* Two panes — side-by-side from sm (640px) upward */}
+        {/* Two panes */}
         <div className="flex flex-col sm:flex-row flex-1 min-h-0">
 
-          {/* Left pane — form/action */}
+          {/* Left pane — always scrollable */}
           <div className={cn(
-            "sm:w-[45%] sm:border-r sm:border-brand-100",
+            leftW, "sm:border-r sm:border-brand-100",
             "overflow-y-auto overscroll-contain",
-            // On mobile: max half the modal height so right pane is still visible
-            "max-h-[45vh] sm:max-h-none",
+            "max-h-[50vh] sm:max-h-none",
           )}>
             <div className="p-4 sm:p-5 space-y-4">
               {leftPane}
             </div>
           </div>
 
-          {/* Right pane — preview/summary */}
+          {/* Right pane — fixed (no scroll) when rightFixed=true, otherwise scrollable */}
           <div className={cn(
-            "sm:w-[55%] overflow-y-auto overscroll-contain",
+            rightW,
+            rightFixed
+              ? "overflow-hidden flex flex-col"           // preview never scrolls away
+              : "overflow-y-auto overscroll-contain",
             "border-t border-brand-100 sm:border-t-0",
             "bg-brand-50/40",
-            // On mobile: allow remaining space
             "flex-1 sm:flex-none",
           )}>
-            <div className="p-4 sm:p-5 space-y-4">
+            <div className={cn(
+              "p-4 sm:p-5 space-y-4",
+              rightFixed && "h-full flex flex-col",
+            )}>
               {rightPane}
             </div>
           </div>
