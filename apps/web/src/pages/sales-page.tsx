@@ -439,7 +439,7 @@ export default function SalesPage() {
       </Modal>
 
       {/* ── MAIN SELL PAGE ── */}
-      <div className="space-y-3 max-w-2xl mx-auto pb-36">
+      <div className="space-y-3 max-w-2xl mx-auto pb-56">
 
         {/* ── SEARCH + SCAN + ADD BILL ── */}
         <div className="flex gap-2">
@@ -602,46 +602,32 @@ export default function SalesPage() {
 
       </div>
 
-      {/* ── BILL SUMMARY + GENERATE — sticky, always visible when cart has items ── */}
+      {/* ── STICKY BOTTOM BAR — compact, always visible ── */}
       {cart.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t-2 border-brand-200 shadow-2xl md:max-w-2xl md:mx-auto">
-          {/* Summary card */}
-          <div className="px-4 pt-3 pb-1 space-y-1">
-            {/* Item list mini */}
-            <div className="flex justify-between text-xs text-slate-500 mb-1">
-              <span>{cart.reduce((s, i) => s + i.quantity, 0)} item{cart.reduce((s, i) => s + i.quantity, 0) !== 1 ? "s" : ""}</span>
-              <span className="font-medium text-brand-700">
-                {paymentMethod === "CASH" ? "💵 Cash" : paymentMethod === "UPI" ? "📱 UPI" : "💳 Card"}
-              </span>
-            </div>
-            {/* Subtotal line (only if discount) */}
-            {discountAmount > 0 && (
-              <div className="flex justify-between text-sm text-slate-500">
-                <span>Subtotal</span><span>{inr(subtotal)}</span>
+          <div className="px-4 py-3 flex items-center justify-between gap-3">
+            {/* Left: total + discount badge */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-2xl font-black text-brand-900 leading-none">{inr(total)}</span>
+                {discountAmount > 0 && (
+                  <span className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                    − {inr(discountAmount)}
+                  </span>
+                )}
               </div>
-            )}
-            {/* Discount line */}
-            {discountAmount > 0 && (
-              <div className="flex justify-between text-sm font-semibold text-amber-600">
-                <span>Discount ({discountPct.toFixed(0)}%)</span>
-                <span>− {inr(discountAmount)}</span>
-              </div>
-            )}
-            {/* Divider + TOTAL — dominant */}
-            <div className={`flex justify-between items-baseline ${discountAmount > 0 ? "border-t border-brand-200 pt-1" : ""}`}>
-              <span className="text-base font-bold text-brand-700">TOTAL</span>
-              <span className="text-3xl font-black text-brand-900">{inr(total)}</span>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {cart.reduce((s, i) => s + i.quantity, 0)} item{cart.reduce((s, i) => s + i.quantity, 0) !== 1 ? "s" : ""} · {paymentMethod === "CASH" ? "💵 Cash" : paymentMethod === "UPI" ? "📱 UPI" : "💳 Card"}
+              </p>
             </div>
-          </div>
-          {/* Generate Bill button */}
-          <div className="px-4 pb-4 pt-2">
-            <Button className="w-full text-lg py-4 font-bold rounded-2xl" onClick={checkout} disabled={checkingOut || cart.length === 0}>
+            {/* Right: Generate Bill button */}
+            <Button className="shrink-0 text-base py-3 px-6 font-bold rounded-2xl" onClick={checkout} disabled={checkingOut || cart.length === 0}>
               {checkingOut ? (
                 <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                  Generating…
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                  …
                 </span>
-              ) : `✅ ${t.generateBill} — ${inr(total)}`}
+              ) : `✅ Bill`}
             </Button>
           </div>
         </div>
