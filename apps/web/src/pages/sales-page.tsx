@@ -400,19 +400,12 @@ export default function SalesPage() {
               <p className="text-xs font-bold uppercase tracking-wide text-brand-700">🧾 {t.cart}</p>
               {cart.map(item => {
                 const lineTotal = item.quantity * item.unitPrice;
-                const billDiscount = discountAmount > 0 && subtotal > 0 ? (item.quantity * item.unitPrice / subtotal) * discountAmount : 0;
-                const itemProfit = (item.unitPrice - item.purchasePrice) * item.quantity - billDiscount;
                 const priceChanged = item.unitPrice !== item.originalPrice;
                 return (
                   <div key={item.productId} className="bg-brand-50 rounded-xl p-3 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-semibold text-sm text-brand-900 flex-1 truncate">{item.name}</p>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${itemProfit >= 0 ? "bg-brand-100 text-brand-700" : "bg-red-100 text-red-600"}`}>
-                          {t.profit} {inr(itemProfit)}
-                        </span>
-                        <button onClick={() => removeFromCart(item.productId)} className="text-terra-400 p-0.5"><X className="h-4 w-4" /></button>
-                      </div>
+                      <button onClick={() => removeFromCart(item.productId)} className="text-terra-400 p-0.5 shrink-0"><X className="h-4 w-4" /></button>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => updateQty(item.productId, item.quantity - 1)} className="w-9 h-9 rounded-lg border-2 border-brand-300 bg-white font-bold text-brand-700 text-xl hover:bg-brand-100 flex items-center justify-center">−</button>
