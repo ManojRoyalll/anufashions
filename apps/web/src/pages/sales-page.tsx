@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, X, Trash2, ScanLine, Plus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { AlertTriangle, X, Trash2, ScanLine, Plus, CheckCircle } from "lucide-react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +36,9 @@ export default function SalesPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [query, setQuery] = useState("");
   const [showScanner, setShowScanner] = useState(false);
+  // Scan list: items accumulated during continuous scan session
+  const [scanList, setScanList] = useState<CartItem[]>([]);
+  const [lastAddedName, setLastAddedName] = useState("");
 
   // Cart
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -88,41 +91,43 @@ export default function SalesPage() {
   };
   const clearCustomer = () => { setSelectedCustomer(null); setNewCustomerName(""); setNewCustomerPhone(""); setCustomerQuery(""); };
 
-  // QR scan
-  const handleQRScan = (data: string) => {
-    setShowScanner(false);
-    // QR may contain:
-    //   New format: just the code  e.g. "ANU52/403-MP64/903-D5"
-    //   Old format: "code | name | price"  (pipe-separated)
+  // Resolve a QR code string to a product (handles all old + new patterns)
+  const resolveCode = useCallback((data: string) => {
     const rawCode = data.split("|")[0].trim();
-
-    // 1. Exact match on code field
     let found = products.find(p => p.code === rawCode);
+    if (!found) { const norm = (s: string) => s.replace(/[\s\-]/g, "").toLowerCase(); found = products.find(p => norm(p.code) === norm(rawCode)); }
+    if (!found) found = products.find(p => p.name.toLowerCase() === rawCode.toLowerCase());
+    if (!found) { const lc = rawCode.toLowerCase(); found = products.find(p => p.code?.toLowerCase().includes(lc) || lc.includes(p.code?.toLowerCase() ?? "__")); }
+    return found ?? null;
+  }, [products]);
 
-    // 2. Old ANU- serial style: "ANU-24/5 MP5349/0053" — try matching the stored code directly
-    if (!found && rawCode.startsWith("ANU-")) {
-      found = products.find(p => p.code === rawCode);
-    }
-
-    // 3. Partial/normalised match — strip spaces, hyphens, compare normalised
-    if (!found) {
-      const norm = (s: string) => s.replace(/[\s\-]/g, "").toLowerCase();
-      found = products.find(p => norm(p.code) === norm(rawCode));
-    }
-
-    // 4. Name match (old QRs that encoded just the name)
-    if (!found) {
-      found = products.find(p => p.name.toLowerCase() === rawCode.toLowerCase());
-    }
-
-    // 5. Code contains the rawCode as substring (handles partial prints)
-    if (!found) {
-      const lc = rawCode.toLowerCase();
-      found = products.find(p => p.code?.toLowerCase().includes(lc) || lc.includes(p.code?.toLowerCase() ?? "__"));
-    }
-
+  // Single-scan handler (search bar scan button — kept for backwards compat)
+  const handleQRScan = useCallback((data: string) => {
+    setShowScanner(false);
+    const found = resolveCode(data);
     if (found) { addToCart(found); show(`${found.name} added ✓`); }
-    else show(`Item not found: ${rawCode}`, "error");
+    else show(`Item not found`, "error");
+  }, [resolveCode]);
+
+  // Continuous-scan handler — adds to scanList instead of cart
+  const handleContinuousScan = useCallback((data: string) => {
+    const found = resolveCode(data);
+    if (!found) { show(`Not found`, "error"); return; }
+    setLastAddedName(found.name);
+    setTimeout(() => setLastAddedName(""), 1200);
+    setScanList(prev => {
+      const existing = prev.find(i => i.productId === found.id);
+      if (existing) return prev.map(i => i.productId === found.id ? { ...i, quantity: i.quantity + 1 } : i);
+      return [...prev, { productId: found.id, name: found.name, quantity: 1, unitPrice: found.sellingPrice, originalPrice: found.sellingPrice, purchasePrice: found.purchasePrice, discountLimit: found.discountLimit }];
+    });
+  }, [resolveCode, show]);
+
+  const openScanner = () => { setScanList([]); setShowScanner(true); };
+
+  const doneScan = () => {
+    setCart(scanList); // replaces entire cart
+    setScanList([]);
+    setShowScanner(false);
   };
 
   // Product search results
@@ -242,7 +247,72 @@ export default function SalesPage() {
 
   return (
     <>
-      {showScanner && <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />}
+      {/* ── CONTINUOUS SCAN SCREEN ── */}
+      {showScanner && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-black shrink-0">
+            <div>
+              <p className="text-white font-bold text-lg">Scan Items</p>
+              <p className="text-white/60 text-xs">{scanList.reduce((s,i)=>s+i.quantity,0)} items scanned</p>
+            </div>
+            <button onClick={() => { setScanList([]); setShowScanner(false); }}
+              className="text-white/70 hover:text-white p-1">
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          {/* Camera — takes top portion */}
+          <div className="shrink-0">
+            <QRScanner onScan={handleContinuousScan} onClose={() => { setScanList([]); setShowScanner(false); }} continuous />
+          </div>
+
+          {/* Scanned items list */}
+          <div className="flex-1 bg-white overflow-y-auto">
+            {scanList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-32 text-slate-400">
+                <p className="text-sm">Point camera at a label to scan</p>
+              </div>
+            ) : (
+              <div className="p-3 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-700 px-1">Items scanned ({scanList.reduce((s,i)=>s+i.quantity,0)})</p>
+                {scanList.map(item => (
+                  <div key={item.productId} className="flex items-center justify-between bg-brand-50 rounded-xl px-3 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-brand-900 truncate">{item.name}</p>
+                      <p className="text-xs text-slate-500">{inr(item.unitPrice)} each</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="font-bold text-brand-800">×{item.quantity}</span>
+                      <span className="font-bold text-brand-700">{inr(item.quantity * item.unitPrice)}</span>
+                      <button onClick={() => setScanList(prev => prev.filter(i => i.productId !== item.productId))}
+                        className="text-terra-400 hover:text-terra-600 p-1">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Add to Bill button */}
+          <div className="shrink-0 bg-white border-t border-brand-200 p-4">
+            {scanList.length > 0 ? (
+              <button onClick={doneScan}
+                className="w-full bg-brand-700 text-white rounded-2xl py-4 text-lg font-bold flex items-center justify-center gap-2 hover:bg-brand-800 transition">
+                <CheckCircle className="h-6 w-6" />
+                Add to Bill ({scanList.reduce((s,i)=>s+i.quantity,0)} items · {inr(scanList.reduce((s,i)=>s+i.quantity*i.unitPrice,0))})
+              </button>
+            ) : (
+              <button onClick={() => { setScanList([]); setShowScanner(false); }}
+                className="w-full border-2 border-brand-200 text-brand-600 rounded-2xl py-4 text-base font-semibold hover:bg-brand-50 transition">
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── BILL GENERATED MODAL ── */}
       <Modal open={showBillModal} onClose={() => setShowBillModal(false)} title="✅ Bill Generated" size="md">
@@ -382,7 +452,7 @@ export default function SalesPage() {
             data-no-caps
             className="flex-1 rounded-xl border border-brand-200 bg-white px-3 py-2.5 text-base shadow-sm focus:border-brand-500 focus:outline-none"
           />
-          <button onClick={() => setShowScanner(true)}
+          <button onClick={openScanner}
             className="shrink-0 flex items-center gap-1.5 rounded-xl bg-brand-700 text-white px-4 py-2 font-bold hover:bg-brand-800 transition">
             <ScanLine className="h-5 w-5" />
           </button>
@@ -532,22 +602,46 @@ export default function SalesPage() {
 
       </div>
 
-      {/* ── STICKY BOTTOM BAR ── */}
+      {/* ── BILL SUMMARY + GENERATE — sticky, always visible when cart has items ── */}
       {cart.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t-2 border-brand-200 shadow-2xl px-4 py-3 md:max-w-2xl md:mx-auto">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs text-slate-500">{cart.reduce((s, i) => s + i.quantity, 0)} items</p>
-              <p className="text-2xl font-black text-brand-900 leading-tight">{inr(total)}</p>
-              {discountAmount > 0 && <p className="text-xs text-terra-600 font-semibold">− {inr(discountAmount)} discount</p>}
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t-2 border-brand-200 shadow-2xl md:max-w-2xl md:mx-auto">
+          {/* Summary card */}
+          <div className="px-4 pt-3 pb-1 space-y-1">
+            {/* Item list mini */}
+            <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <span>{cart.reduce((s, i) => s + i.quantity, 0)} item{cart.reduce((s, i) => s + i.quantity, 0) !== 1 ? "s" : ""}</span>
+              <span className="font-medium text-brand-700">
+                {paymentMethod === "CASH" ? "💵 Cash" : paymentMethod === "UPI" ? "📱 UPI" : "💳 Card"}
+              </span>
             </div>
-            <Button className="text-lg py-4 px-8 font-bold rounded-2xl" onClick={checkout} disabled={checkingOut || cart.length === 0}>
+            {/* Subtotal line (only if discount) */}
+            {discountAmount > 0 && (
+              <div className="flex justify-between text-sm text-slate-500">
+                <span>Subtotal</span><span>{inr(subtotal)}</span>
+              </div>
+            )}
+            {/* Discount line */}
+            {discountAmount > 0 && (
+              <div className="flex justify-between text-sm font-semibold text-amber-600">
+                <span>Discount ({discountPct.toFixed(0)}%)</span>
+                <span>− {inr(discountAmount)}</span>
+              </div>
+            )}
+            {/* Divider + TOTAL — dominant */}
+            <div className={`flex justify-between items-baseline ${discountAmount > 0 ? "border-t border-brand-200 pt-1" : ""}`}>
+              <span className="text-base font-bold text-brand-700">TOTAL</span>
+              <span className="text-3xl font-black text-brand-900">{inr(total)}</span>
+            </div>
+          </div>
+          {/* Generate Bill button */}
+          <div className="px-4 pb-4 pt-2">
+            <Button className="w-full text-lg py-4 font-bold rounded-2xl" onClick={checkout} disabled={checkingOut || cart.length === 0}>
               {checkingOut ? (
                 <span className="flex items-center gap-2">
                   <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                   Generating…
                 </span>
-              ) : `✅ ${t.generateBill}`}
+              ) : `✅ ${t.generateBill} — ${inr(total)}`}
             </Button>
           </div>
         </div>
