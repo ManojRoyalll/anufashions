@@ -358,7 +358,35 @@ const api = {
     const tableMap: Record<string, string> = { products: 'Product', categories: 'Category', suppliers: 'Supplier', customers: 'Customer', 'price-ranges': 'PriceRange', expenses: 'Expense', sales: 'Sale', purchases: 'Purchase' }
     const table = tableMap[resource]
     if (!table) throw new Error(`Unknown DELETE: ${path}`)
-    if (table === 'Sale') await supabase.from('SaleItem').delete().eq('saleId', id)
+
+    if (table === 'Sale') {
+      // Reverse effects: restock products + fix customer totalSpend
+      const { data: sale } = await supabase.from('Sale').select('customerId, totalAmount, items:SaleItem(productId, quantity)').eq('id', id).single()
+      if (sale) {
+        // Restock each product
+        for (const item of sale.items ?? []) {
+          const { data: prod } = await supabase.from('Product').select('quantity').eq('id', item.productId).single()
+          if (prod) {
+            const nq = prod.quantity + item.quantity
+            await supabase.from('Product').update({ quantity: nq, stockStatus: stockStatus(nq), updatedAt: new Date().toISOString() }).eq('id', item.productId)
+          }
+        }
+        // Reverse customer spend
+        if (sale.customerId) {
+          const { data: cust } = await supabase.from('Customer').select('totalSpend, lifetimeValue').eq('id', sale.customerId).single()
+          if (cust) {
+            const amt = Number(sale.totalAmount)
+            await supabase.from('Customer').update({
+              totalSpend: String(Math.max(0, Number(cust.totalSpend) - amt)),
+              lifetimeValue: String(Math.max(0, Number(cust.lifetimeValue) - amt)),
+              updatedAt: new Date().toISOString()
+            }).eq('id', sale.customerId)
+          }
+        }
+      }
+      await supabase.from('SaleItem').delete().eq('saleId', id)
+    }
+
     if (table === 'Purchase') await supabase.from('PurchaseItem').delete().eq('purchaseId', id)
     const { error } = await supabase.from(table).delete().eq('id', id)
     if (error) throw new Error(error.message)
