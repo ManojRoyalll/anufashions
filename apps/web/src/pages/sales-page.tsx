@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { Drawer } from "@/components/ui/drawer";
 import { useToastStore } from "@/store/toast";
 import { useLang } from "@/hooks/use-lang";
 import { inr } from "@/lib/utils";
@@ -17,8 +18,11 @@ type CartItem = {
 
 type SaleRecord = {
   id: string; saleDate: string; totalAmount: number; paymentMethod: string; discount: number;
-  customer?: { name: string };
-  items: { id: string; quantity: number; unitPrice: number; product?: { name: string; id: string } }[];
+  customer?: { name: string; phone?: string };
+  items: {
+    id: string; quantity: number; unitPrice: number; lineTotal?: number; purchasePrice?: number;
+    product?: { name: string; id: string; supplier?: { name: string }; category?: { name: string } };
+  }[];
 };
 
 type Customer = { id: string; name: string; phone?: string; totalSpend: number };
@@ -68,6 +72,8 @@ export default function SalesPage() {
   // Sales history
   const [salesHistory, setSalesHistory] = useState<SaleRecord[]>([]);
   const [period, setPeriod] = useState<HistoryPeriod>("today");
+  const [historySearch, setHistorySearch] = useState("");
+  const [detailSale, setDetailSale] = useState<SaleRecord | null>(null);
 
   // Edit sale state
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
@@ -533,46 +539,82 @@ export default function SalesPage() {
         {/* ── SALES HISTORY ── */}
         <Card>
           <CardContent className="p-3 space-y-3">
+            {/* Header row */}
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="font-semibold text-brand-900">{t.todaysSales}</h3>
-              <div className="flex gap-1">
-                {(["today", "week", "month"] as HistoryPeriod[]).map((p) => (
-                  <button key={p} onClick={() => { setPeriod(p); loadHistory(p); }}
-                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${period === p ? "bg-brand-700 text-white" : "bg-brand-50 text-brand-700"}`}>
-                    {periodLabel[p]}
-                  </button>
-                ))}
+              <div className="flex items-center gap-1.5">
+                <div className="flex gap-1">
+                  {(["today", "week", "month"] as HistoryPeriod[]).map((p) => (
+                    <button key={p} onClick={() => { setPeriod(p); loadHistory(p); }}
+                      className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${period === p ? "bg-brand-700 text-white" : "bg-brand-50 text-brand-700"}`}>
+                      {periodLabel[p]}
+                    </button>
+                  ))}
+                </div>
+                {/* Add Bill from history */}
+                <button
+                  onClick={() => { setCart([]); setQuery(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-brand-700 text-white text-xs font-bold hover:bg-brand-800 transition"
+                >
+                  + Add Bill
+                </button>
               </div>
             </div>
-            {salesHistory.length === 0 ? (
-              <p className="text-center text-sm text-slate-400 py-4">{t.noSales}</p>
-            ) : (
-              <div className="space-y-2">
-                {salesHistory.map((sale) => (
-                  <div key={sale.id} className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-brand-900">
-                        {sale.items.reduce((s, i) => s + i.quantity, 0)} {t.items}
-                        {sale.customer && <span className="text-brand-600"> · {sale.customer.name}</span>}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {new Date(sale.saleDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                        {" · "}{sale.paymentMethod === "CASH" ? t.cash : sale.paymentMethod === "UPI" ? t.upi : t.card}
-                      </p>
+
+            {/* Search */}
+            <input
+              type="text"
+              placeholder="Search by item, customer..."
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+              className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+              data-no-caps
+            />
+
+            {/* List */}
+            {(() => {
+              const q = historySearch.toLowerCase().trim();
+              const filtered = q
+                ? salesHistory.filter(s =>
+                    s.customer?.name?.toLowerCase().includes(q) ||
+                    s.items.some(i => i.product?.name?.toLowerCase().includes(q) || i.product?.supplier?.name?.toLowerCase().includes(q))
+                  )
+                : salesHistory;
+              return filtered.length === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-4">{q ? "No matching sales" : t.noSales}</p>
+              ) : (
+                <div className="space-y-2">
+                  {filtered.map((sale) => (
+                    <div key={sale.id}
+                      className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5 cursor-pointer hover:bg-brand-100/60 transition"
+                      onClick={() => setDetailSale(sale)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-brand-900">
+                          {sale.items.reduce((s, i) => s + i.quantity, 0)} {t.items}
+                          {sale.customer && <span className="text-brand-600"> · {sale.customer.name}</span>}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate">
+                          {new Date(sale.saleDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          {" · "}{sale.paymentMethod === "CASH" ? t.cash : sale.paymentMethod === "UPI" ? t.upi : t.card}
+                          {sale.items[0]?.product?.supplier?.name && <span> · {sale.items[0].product.supplier.name}</span>}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+                        <p className="font-bold text-brand-800">{inr(Number(sale.totalAmount))}</p>
+                        <button onClick={() => openEditSale(sale)} className="p-1.5 text-brand-400 hover:text-brand-700 hover:bg-brand-100 rounded-lg">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => deleteSale(sale.id)} className="p-1.5 text-terra-400 hover:text-terra-600 rounded-lg">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                      <p className="font-bold text-brand-800">{inr(Number(sale.totalAmount))}</p>
-                      <button onClick={() => openEditSale(sale)} className="p-1.5 text-brand-400 hover:text-brand-700 hover:bg-brand-100 rounded-lg" title="Edit">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={() => deleteSale(sale.id)} className="p-1.5 text-terra-400 hover:text-terra-600 rounded-lg" title="Delete">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
+
             <div className="flex justify-between rounded-xl bg-white border border-brand-200 px-3 py-2.5 text-sm font-semibold">
               <span>{salesHistory.length} {t.transactions}</span>
               <span className="text-brand-800">{inr(salesHistory.reduce((s, r) => s + Number(r.totalAmount), 0))}</span>
@@ -580,6 +622,89 @@ export default function SalesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── SALE DETAIL DRAWER ── */}
+      <Drawer
+        open={!!detailSale}
+        onClose={() => setDetailSale(null)}
+        title={`Sale — ${new Date(detailSale?.saleDate ?? "").toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}`}
+      >
+        {detailSale && (
+          <div className="space-y-4">
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-terra-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Total Amount</p>
+                <p className="font-bold text-xl text-terra-700">{inr(Number(detailSale.totalAmount))}</p>
+              </div>
+              <div className="bg-brand-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">Payment</p>
+                <p className="font-bold text-brand-900 text-xl">
+                  {detailSale.paymentMethod === "CASH" ? "💵 Cash" : detailSale.paymentMethod === "UPI" ? "📱 UPI" : "💳 Card"}
+                </p>
+              </div>
+              {detailSale.customer && (
+                <div className="bg-brand-50 rounded-xl p-3 col-span-2">
+                  <p className="text-xs text-slate-500">Customer</p>
+                  <p className="font-semibold text-brand-900">{detailSale.customer.name}</p>
+                  {detailSale.customer.phone && <p className="text-xs text-slate-500">{detailSale.customer.phone}</p>}
+                </div>
+              )}
+              {Number(detailSale.discount) > 0 && (
+                <div className="bg-amber-50 rounded-xl p-3 col-span-2">
+                  <p className="text-xs text-slate-500">Discount applied</p>
+                  <p className="font-semibold text-amber-700">− {inr(Number(detailSale.discount))}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Items sold */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-brand-700 mb-2">
+                Items Sold ({detailSale.items.length})
+              </p>
+              <div className="space-y-2">
+                {detailSale.items.map((item, i) => (
+                  <div key={item.id ?? i} className="bg-white border border-brand-100 rounded-xl px-3 py-2.5">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-brand-900">{item.product?.name ?? "—"}</p>
+                        {item.product?.category?.name && <p className="text-xs text-slate-500">{item.product.category.name}</p>}
+                        {item.product?.supplier?.name && (
+                          <p className="text-xs text-brand-600 font-medium">Supplier: {item.product.supplier.name}</p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0 ml-3">
+                        <p className="text-sm font-semibold">{item.quantity} × {inr(Number(item.unitPrice))}</p>
+                        <p className="text-xs font-bold text-brand-700">{inr(item.quantity * Number(item.unitPrice))}</p>
+                        {item.purchasePrice && (
+                          <p className="text-xs text-slate-400">Buy: {inr(Number(item.purchasePrice))}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { openEditSale(detailSale); setDetailSale(null); }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-brand-700 border border-brand-200 rounded-xl hover:bg-brand-50 transition"
+              >
+                <Pencil className="h-4 w-4" /> Edit Payment
+              </button>
+              <button
+                onClick={() => { if (confirm("Delete this sale?")) { deleteSale(detailSale.id); setDetailSale(null); } }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-terra-600 border border-terra-200 rounded-xl hover:bg-terra-50 transition"
+              >
+                <Trash2 className="h-4 w-4" /> Delete Sale
+              </button>
+            </div>
+          </div>
+        )}
+      </Drawer>
 
       {/* ── STICKY BOTTOM BAR — always visible when cart has items ── */}
       {cart.length > 0 && (

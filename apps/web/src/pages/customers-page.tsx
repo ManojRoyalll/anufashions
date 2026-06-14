@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/store/toast";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,14 @@ export default function CustomersPage() {
     } catch { show("Error", "error"); }
   };
 
+  const recalculate = async (c: Customer) => {
+    try {
+      const res = await api.post(`/customers/${c.id}/recalculate`, {});
+      show(`${c.name}: spend recalculated to ${inr(res.data.totalSpend)} ✓`);
+      load();
+    } catch { show("Error recalculating", "error"); }
+  };
+
   const remove = async (id: string) => {
     if (!confirm(t.delete + "?")) return;
     try { await api.delete(`/customers/${id}`); show(t.delete + " ✓"); load(); }
@@ -70,7 +78,10 @@ export default function CustomersPage() {
     { key: "address", label: t.address },
     { key: "totalSpend", label: "Total Spent", render: (c: Customer) => <span className="font-semibold text-brand-700">{inr(c.totalSpend)}</span> },
     { key: "actions", label: "", render: (c: Customer) => (
-      <div className="flex gap-2">
+      <div className="flex gap-1.5">
+        <button onClick={() => recalculate(c)} title="Recalculate spend from actual sales" className="p-1.5 text-brand-400 hover:text-brand-700 hover:bg-brand-50 rounded-lg">
+          <RefreshCw className="h-3.5 w-3.5" />
+        </button>
         <Button size="sm" variant="secondary" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button>
         <Button size="sm" variant="accent" onClick={() => remove(c.id)}><Trash2 className="h-3 w-3" /></Button>
       </div>

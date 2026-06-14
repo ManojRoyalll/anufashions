@@ -82,7 +82,7 @@ const api = {
 
     // ── SALES ──
     if (path === '/sales') {
-      let q = supabase.from('Sale').select('*, customer:Customer(*), items:SaleItem(*)').order('saleDate', { ascending: false })
+      let q = supabase.from('Sale').select('*, customer:Customer(*), items:SaleItem(*, product:Product(*, supplier:Supplier(*), category:Category(*)))').order('saleDate', { ascending: false })
       if (params.from) q = q.gte('saleDate', params.from)
       const { data, error } = await q
       return { data: check(data, error)?.map(s => ({ ...s, totalAmount: Number(s.totalAmount), revenue: Number(s.revenue), netProfit: Number(s.netProfit) })) }
@@ -289,6 +289,15 @@ const api = {
       const { data: row, error } = await supabase.from('Expense').insert({ id: crypto.randomUUID(), ...data, amount: String(data.amount), createdAt: now, updatedAt: now }).select().single()
       if (error) throw new Error(error.message)
       return { data: row }
+    }
+
+    // ── RECALCULATE CUSTOMER SPEND ──
+    if (path.startsWith('/customers/') && path.endsWith('/recalculate')) {
+      const custId = path.split('/')[2]
+      const { data: sales } = await supabase.from('Sale').select('totalAmount').eq('customerId', custId)
+      const total = (sales ?? []).reduce((s: number, r: any) => s + Number(r.totalAmount), 0)
+      await supabase.from('Customer').update({ totalSpend: String(total), lifetimeValue: String(total), updatedAt: new Date().toISOString() }).eq('id', custId)
+      return { data: { totalSpend: total } }
     }
 
     // ── REASSIGN PRICE RANGES ──
