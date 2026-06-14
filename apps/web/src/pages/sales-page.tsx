@@ -434,7 +434,6 @@ export default function SalesPage() {
             placeholder={t.search}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            autoFocus
             className="flex-1 rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none text-base"
           />
           <button onClick={() => setShowScanner(true)}
@@ -613,10 +612,26 @@ export default function SalesPage() {
                 <button
                   onClick={() => {
                     setCart([]); setQuery(""); setCustomDiscount(""); setDiscountChip(0); clearCustomer();
-                    setTimeout(() => {
-                      searchRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                      searchRef.current?.focus();
-                    }, 100);
+                    // Walk up the DOM to find the scrollable container and scroll it to 0
+                    // Then focus the input — two ticks to let React re-render settle first
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        const el = searchRef.current;
+                        if (!el) return;
+                        // Scroll the nearest scrollable ancestor to the top
+                        let parent: HTMLElement | null = el.parentElement;
+                        while (parent) {
+                          if (parent.scrollHeight > parent.clientHeight) {
+                            parent.scrollTo({ top: 0, behavior: "smooth" });
+                            break;
+                          }
+                          parent = parent.parentElement;
+                        }
+                        // Fallback: also try document scrolling
+                        document.documentElement.scrollTo({ top: 0, behavior: "smooth" });
+                        el.focus();
+                      });
+                    });
                   }}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-brand-700 text-white text-xs font-bold hover:bg-brand-800 transition"
                 >
