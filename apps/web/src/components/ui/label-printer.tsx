@@ -29,19 +29,22 @@ type LabelLayout = {
   itemCode: FieldCfg;
 };
 
-// wdfx-derived defaults for 50×30mm — scale proportionally for other sizes
+// Default layout for 100×50mm (Josh Standard) — from wdfx reference label photo.
+// Custom sizes scale proportionally from this baseline.
 function defaultLayout(size: LabelSize): LabelLayout {
-  const sX = size.w / 50;
-  const sY = size.h / 30;
+  // Reference measurements for 100×50mm (2× the 50×30mm wdfx source)
+  const REF_W = 100, REF_H = 50;
+  const sX = size.w / REF_W;
+  const sY = size.h / REF_H;
   const sF = Math.min(sX, sY);
-  const x  = (mm: number) => Math.round(mm * sX * 10) / 10;
-  const y  = (mm: number) => Math.round(mm * sY * 10) / 10;
-  const f  = (mm: number) => Math.round(mm * sF * 10) / 10;
+  const x = (mm: number) => Math.round(mm * sX * 10) / 10;
+  const y = (mm: number) => Math.round(mm * sY * 10) / 10;
+  const f = (mm: number) => Math.round(mm * sF * 10) / 10;
   return {
-    qr:       { visible: true, x: x(0.788),  y: y(1.905), size: f(17.842) },
-    shopName: { visible: true, x: x(22.685), y: y(4.532), fontSize: f(3.999), bold: false },
-    itemName: { visible: true, x: x(22.455), y: y(8.464), fontSize: f(3.999), bold: false },
-    itemCode: { visible: true, x: x(21.820), y: y(12.117), fontSize: f(5.644), bold: true  },
+    qr:       { visible: true, x: x(1.5),   y: y(3.0),  size: f(22.0) },
+    shopName: { visible: true, x: x(27.0),  y: y(4.0),  fontSize: f(5.0),  bold: false },
+    itemName: { visible: true, x: x(27.0),  y: y(11.0), fontSize: f(5.0),  bold: false },
+    itemCode: { visible: true, x: x(27.0),  y: y(21.0), fontSize: f(7.5),  bold: true  },
   };
 }
 
@@ -449,7 +452,20 @@ export function LabelPrinterItem({ product }: { product: Product }) {
             <span className="text-xs text-slate-400 shrink-0">/ {product.quantity}</span>
           </div>
 
-          {/* ── TABS: editor controls ── */}
+          {/* ── DOWNLOAD — directly below count ── */}
+          <Button className="w-full py-4 text-lg font-bold rounded-2xl" onClick={downloadPDF} disabled={pdfLoading || count === 0}>
+            <Download className="mr-2 h-5 w-5" />
+            {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
+          </Button>
+
+          {downloaded && (
+            <p className="text-center text-xs text-green-600 font-semibold">
+              ✓ Label already downloaded
+              <button onClick={() => { setDownloaded(false); try { localStorage.removeItem(`label-downloaded-${product.id}`); } catch { /**/ } }} className="ml-2 underline text-slate-400">reset</button>
+            </p>
+          )}
+
+          {/* ── TABS: layout editor (advanced, below download) ── */}
           <div className="rounded-2xl border border-slate-200 overflow-hidden">
             {/* Tab headers */}
             <div className="flex border-b border-slate-200 bg-slate-50">
@@ -513,18 +529,6 @@ export function LabelPrinterItem({ product }: { product: Product }) {
             </div>
           </div>
 
-          {/* ── DOWNLOAD ── */}
-          <Button className="w-full py-4 text-lg font-bold rounded-2xl" onClick={downloadPDF} disabled={pdfLoading || count === 0}>
-            <Download className="mr-2 h-5 w-5" />
-            {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
-          </Button>
-
-          {downloaded && (
-            <p className="text-center text-xs text-green-600 font-semibold">
-              ✓ Label already downloaded
-              <button onClick={() => { setDownloaded(false); try { localStorage.removeItem(`label-downloaded-${product.id}`); } catch { /**/ } }} className="ml-2 underline text-slate-400">reset</button>
-            </p>
-          )}
         </div>
       </Modal>
     </>
