@@ -1,35 +1,44 @@
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700&display=swap");
 
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #f7f8f3;
-  --color-brand-100: #ecefdf;
-  --color-brand-200: #d9dfc0;
-  --color-brand-300: #bdc791;
-  --color-brand-400: #9ea95f;
-  --color-brand-500: #7f8a44;
-  --color-brand-600: #6a7338;
-  --color-brand-700: #535a2f;
-  --color-brand-800: #444b2a;
-  --color-brand-900: #3a4027;
-  --color-terra-50: #fdf4f0;
-  --color-terra-100: #fbe5dc;
-  --color-terra-200: #f5c9b6;
-  --color-terra-300: #eda588;
-  --color-terra-400: #e07c57;
-  --color-terra-500: #c85a30;
-  --color-terra-600: #b44f2b;
-  --color-terra-700: #943f22;
+  --font-serif: "Noto Serif", Georgia, serif;
+
+  /* ── Primary: Deep Magenta / Pink (from banner) ── */
+  --color-brand-50:  #fdf0f6;
+  --color-brand-100: #fce4f1;
+  --color-brand-200: #f9c0e2;
+  --color-brand-300: #f48dc4;
+  --color-brand-400: #ec4f9f;
+  --color-brand-500: #d81b7a;
+  --color-brand-600: #c2185b;
+  --color-brand-700: #a0154c;
+  --color-brand-800: #7d103b;
+  --color-brand-900: #5a0b2b;
+
+  /* ── Accent: Warm Gold (from banner) ── */
+  --color-terra-50:  #fdf8e7;
+  --color-terra-100: #faefc2;
+  --color-terra-200: #f5df88;
+  --color-terra-300: #edc84a;
+  --color-terra-400: #d4a017;
+  --color-terra-500: #b8880f;
+  --color-terra-600: #96700c;
+  --color-terra-700: #6e5009;
+
+  /* ── Dashboard background: warm cream matching banner ── */
   --background-image-dashboard:
-    radial-gradient(circle at 10% 20%, rgba(127, 138, 68, 0.22), transparent 35%),
-    radial-gradient(circle at 95% 10%, rgba(200, 90, 48, 0.2), transparent 30%),
-    linear-gradient(145deg, #fdfcf8 0%, #f8f4eb 100%);
+    radial-gradient(circle at 5% 15%, rgba(194, 24, 91, 0.08), transparent 35%),
+    radial-gradient(circle at 95% 5%,  rgba(212, 160, 23, 0.12), transparent 30%),
+    radial-gradient(circle at 50% 90%, rgba(194, 24, 91, 0.05), transparent 40%),
+    linear-gradient(145deg, #fffaf5 0%, #fff8f0 100%);
 }
 
 :root {
-  color: #282619;
+  color: #2D1515;
 }
 
 html {
@@ -56,6 +65,11 @@ textarea::placeholder {
 }
 
 .glass {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.62));
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.68));
   backdrop-filter: blur(12px);
+}
+
+/* Gold shimmer utility for decorative borders */
+.gold-border {
+  border-image: linear-gradient(135deg, #D4A017, #F5DF88, #D4A017) 1;
 }

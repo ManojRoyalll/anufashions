@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "@/components/layout/app-shell";
+import HomePage from "@/pages/home-page";
 import SalesPage from "@/pages/sales-page";
 import SalesHistoryPage from "@/pages/sales-history-page";
 import BuyPage from "@/pages/buy-page";
@@ -31,6 +32,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<Protected><AppShell /></Protected>}>
+        <Route path="/home" element={<HomePage />} />
         {/* Primary 5-item nav */}
         <Route path="/" element={<SalesPage />} />
         <Route path="/buy" element={<BuyPage />} />

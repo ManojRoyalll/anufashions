@@ -15,8 +15,8 @@ export default defineConfig({
         name: "Anu Fashions ERP",
         short_name: "Anu Fashions",
         description: "Retail operations for sarees and ladies wear",
-        theme_color: "#7f8a44",
-        background_color: "#f8f4eb",
+        theme_color: "#C2185B",
+        background_color: "#FFF8F0",
         display: "standalone",
         icons: [
           {
