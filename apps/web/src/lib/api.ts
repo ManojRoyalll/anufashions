@@ -97,7 +97,7 @@ const api = {
     // ── DASHBOARD ──
     if (path === '/dashboard') {
       const [{ data: prods }, { data: salesD }, { data: exps }, { data: purch }, { data: pitems }] = await Promise.all([
-        supabase.from('Product').select('purchasePrice,sellingPrice,quantity,stockStatus'),
+        supabase.from('Product').select('id,name,purchasePrice,sellingPrice,quantity,stockStatus'),
         supabase.from('Sale').select('revenue,netProfit,saleDate,totalAmount'),
         supabase.from('Expense').select('amount'),
         supabase.from('Purchase').select('id,totalAmount,invoiceBillAmount,transportCost'),
