@@ -289,10 +289,10 @@ export default function SalesPage() {
       </Modal>
 
       {/* ── MAIN LAYOUT: two-pane on md+, single column on mobile ── */}
-      <div className="md:grid md:grid-cols-[55%_45%] md:gap-4 md:items-start md:h-[calc(100vh-80px)]">
+      <div className="sm:grid sm:grid-cols-[55%_45%] sm:gap-4 sm:items-start sm:h-[calc(100vh-80px)]">
 
         {/* ══ LEFT PANE: search, cart, discount ══ */}
-        <div className="space-y-3 pb-28 md:pb-4 md:overflow-y-auto md:h-full">
+        <div className="space-y-3 pb-28 sm:pb-4 sm:overflow-y-auto sm:h-full">
 
           {/* Search + Scan + Bill */}
           <div className="flex gap-2">
@@ -396,7 +396,7 @@ export default function SalesPage() {
 
           {/* Payment + Customer + Generate Bill — mobile only (below discount) */}
           {cart.length > 0 && (
-            <div className="md:hidden space-y-3">
+            <div className="sm:hidden space-y-3">
               <div className="grid grid-cols-3 gap-2">
                 {[["CASH","💵",t.cash],["UPI","📱",t.upi],["CARD","💳",t.card]].map(([val,icon,label])=>(
                   <button key={val} onClick={()=>setPaymentMethod(val)} className={`rounded-xl py-3 text-center font-bold border-2 transition ${paymentMethod===val?"bg-brand-700 text-white border-brand-700":"bg-white text-brand-700 border-brand-200"}`}>
@@ -433,7 +433,7 @@ export default function SalesPage() {
         </div>
 
         {/* ══ RIGHT PANE: bill summary — tablet/desktop only ══ */}
-        <div className="hidden md:flex md:flex-col md:h-full md:overflow-y-auto">
+        <div className="hidden sm:flex sm:flex-col sm:h-full sm:overflow-y-auto">
           {cart.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-300 rounded-2xl border-2 border-dashed border-slate-200 p-8">
               <ScanLine className="h-12 w-12 mb-3 opacity-40" />
@@ -527,7 +527,7 @@ export default function SalesPage() {
 
       {/* ── MOBILE sticky bottom bar ── */}
       {cart.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white border-t-2 border-brand-200 shadow-2xl">
+        <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-white border-t-2 border-brand-200 shadow-2xl">
           <div className="px-4 py-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">

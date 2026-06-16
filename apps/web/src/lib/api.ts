@@ -124,7 +124,7 @@ const api = {
     if (path === '/analytics/overview') {
       const [{ data: salesFull }, { data: prods }, { data: cats }] = await Promise.all([
         supabase.from('Sale').select('saleDate,totalAmount,items:SaleItem(lineTotal,purchasePrice,quantity,product:Product(name,category:Category(name)))'),
-        supabase.from('Product').select('categoryId,quantity,category:Category(name)'),
+        supabase.from('Product').select('id,name,categoryId,quantity,category:Category(name)'),
         supabase.from('Category').select('id,name')
       ])
       const dailyMap = new Map<string, number>(); const catProfit = new Map<string, number>(); const topMap = new Map<string, number>()
