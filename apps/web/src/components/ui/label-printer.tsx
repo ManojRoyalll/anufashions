@@ -43,14 +43,13 @@ function defaultLayout(size: LabelSize): LabelLayout {
   const y = (mm: number) => Math.round(mm * sY * 10) / 10;
   const f = (mm: number) => Math.round(mm * sF * 10) / 10;
   return {
-    // Shop name: top-left, full width, above the QR
-    shopName: { visible: true, x: x(2.5),  y: y(2.0),  fontSize: f(5.5),  bold: false },
+    shopName: { visible: true, x: x(5.5),  y: y(4.5),  fontSize: f(5.5),  bold: false },
     // QR: left side, below shop name
-    qr:       { visible: true, x: x(2.0),  y: y(9.5),  size: f(36.0) },
+    qr:       { visible: true, x: x(5.5),  y: y(13.5), size: f(30.0) },
     // Item name: right of QR, aligned with QR top
-    itemName: { visible: true, x: x(42.0), y: y(10.0), fontSize: f(5.5),  bold: false },
+    itemName: { visible: true, x: x(40.0), y: y(13.0), fontSize: f(5.5),  bold: false },
     // Item code: right of QR, below item name, bold large
-    itemCode: { visible: true, x: x(40.5), y: y(20.0), fontSize: f(9.0),  bold: true  },
+    itemCode: { visible: true, x: x(41.0), y: y(24.0), fontSize: f(7.0),  bold: true  },
   };
 }
 
