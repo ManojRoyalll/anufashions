@@ -16,7 +16,7 @@ const LABEL_PRESETS: LabelSize[] = [
   { label: "Josh Standard (100×50mm)", w: 100, h: 50 },
 ];
 
-const DEFAULT_SIZE = LABEL_PRESETS[1]; // 100×50mm (Josh Standard) — perfect fit confirmed
+const DEFAULT_SIZE = LABEL_PRESETS[0]; // 100×50mm (Josh Standard)
 
 // ── LAYOUT TYPE ───────────────────────────────────────────────────────────────
 type FieldCfg = { visible: boolean; x: number; y: number; fontSize: number; bold: boolean };
