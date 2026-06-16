@@ -29,10 +29,12 @@ type LabelLayout = {
   itemCode: FieldCfg;
 };
 
-// Default layout for 100×50mm (Josh Standard) — from wdfx reference label photo.
-// Custom sizes scale proportionally from this baseline.
+// Layout measured from reference screenshot (100×50mm label):
+// - "Anu Fashions": top-left, spans full width, above QR
+// - QR code: left side, below shop name
+// - Item name: right of QR, same top as QR
+// - Item code (bold, large): right of QR, below item name
 function defaultLayout(size: LabelSize): LabelLayout {
-  // Reference measurements for 100×50mm (2× the 50×30mm wdfx source)
   const REF_W = 100, REF_H = 50;
   const sX = size.w / REF_W;
   const sY = size.h / REF_H;
@@ -41,10 +43,14 @@ function defaultLayout(size: LabelSize): LabelLayout {
   const y = (mm: number) => Math.round(mm * sY * 10) / 10;
   const f = (mm: number) => Math.round(mm * sF * 10) / 10;
   return {
-    qr:       { visible: true, x: x(1.5),   y: y(3.0),  size: f(22.0) },
-    shopName: { visible: true, x: x(27.0),  y: y(4.0),  fontSize: f(5.0),  bold: false },
-    itemName: { visible: true, x: x(27.0),  y: y(11.0), fontSize: f(5.0),  bold: false },
-    itemCode: { visible: true, x: x(27.0),  y: y(21.0), fontSize: f(7.5),  bold: true  },
+    // Shop name: top-left, full width, above the QR
+    shopName: { visible: true, x: x(2.5),  y: y(2.0),  fontSize: f(5.5),  bold: false },
+    // QR: left side, below shop name
+    qr:       { visible: true, x: x(2.0),  y: y(9.5),  size: f(36.0) },
+    // Item name: right of QR, aligned with QR top
+    itemName: { visible: true, x: x(42.0), y: y(10.0), fontSize: f(5.5),  bold: false },
+    // Item code: right of QR, below item name, bold large
+    itemCode: { visible: true, x: x(40.5), y: y(20.0), fontSize: f(9.0),  bold: true  },
   };
 }
 
