@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/hooks/use-lang";
-import CategoriesPage from "@/pages/categories-page";
-import PriceRangesPage from "@/pages/price-ranges-page";
-import CustomersPage from "@/pages/customers-page";
-import SuppliersPage from "@/pages/suppliers-page";
-import InvoicesPage from "@/pages/invoices-page";
+import CategoriesPage from "@/pages/categories";
+import PriceRangesPage from "@/pages/price-ranges";
+import CustomersPage from "@/pages/customers";
+import SuppliersPage from "@/pages/suppliers";
+import InvoicesPage from "@/pages/invoices";
 import { getSellMultiplier, setSellMultiplier, roundUpTo50 } from "@/lib/utils";
 
 type Tab = "pricing" | "categories" | "prices" | "suppliers" | "invoices" | "customers";

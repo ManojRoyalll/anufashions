@@ -1,4 +1,4 @@
-// apps/web/src/pages/products-page.tsx
+
 import { useEffect, useMemo, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

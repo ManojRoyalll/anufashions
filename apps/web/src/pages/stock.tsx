@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useLang } from "@/hooks/use-lang";
 import { cn } from "@/lib/utils";
-import AddStockPage from "@/pages/add-stock-page";
-import ProductsPage from "@/pages/products-page";
+import AddStockPage from "@/pages/add-stock";
+import ProductsPage from "@/pages/products";
 
 export default function StockPage() {
   const { t } = useLang();
