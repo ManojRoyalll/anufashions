@@ -18,9 +18,126 @@ type CustomerDetail = KhataCustomer & { transactions: KhataTransaction[] };
 
 type Product = { id: string; name: string; sellingPrice: number };
 
-// ── Item row for purchase form ─────────────────────────────────────────────
 type ItemRow = { id: string; name: string; qty: number; price: number; fromStock: boolean };
 function emptyRow(): ItemRow { return { id: Math.random().toString(36).slice(2), name: "", qty: 1, price: 0, fromStock: false }; }
+function itemsTotal(rows: ItemRow[]) { return rows.reduce((s, i) => s + i.qty * (i.price || 0), 0); }
+
+// ── PurchaseForm — defined OUTSIDE the page component so it is a stable
+//    component type and React never unmounts it on parent re-render.
+//    (If defined inside, every keystroke re-creates the type → focus lost)
+function PurchaseForm({
+  items, setItems, products,
+  stockSearchVal, setStockSearch,
+  paid, setPaid, noteVal, setNote,
+}: {
+  items: ItemRow[]; setItems: (r: ItemRow[]) => void; products: Product[];
+  stockSearchVal: string; setStockSearch: (v: string) => void;
+  paid: string; setPaid: (v: string) => void;
+  noteVal: string; setNote: (v: string) => void;
+}) {
+  const total = itemsTotal(items);
+  const balance = total - (Number(paid) || 0);
+  const hasNamedItems = items.some(i => i.name.trim());
+
+  const stockFiltered = (q: string) => {
+    if (!q.trim()) return products.slice(0, 6);
+    return products.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
+  };
+
+  const addFromStock = (p: Product) => {
+    const ex = items.find(r => r.fromStock && r.name === p.name);
+    if (ex) setItems(items.map(r => r.name === p.name && r.fromStock ? { ...r, qty: r.qty + 1 } : r));
+    else setItems([...items.filter(r => r.name || r.price), { id: Math.random().toString(36).slice(2), name: p.name, qty: 1, price: p.sellingPrice, fromStock: true }]);
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Stock search */}
+      <div>
+        <p className="text-xs font-semibold text-brand-700 mb-1">Search from Stock</p>
+        <input type="text" placeholder="Type saree name to search stock..." value={stockSearchVal}
+          onChange={e => setStockSearch(e.target.value)} data-no-caps
+          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+        {stockSearchVal.trim() && (
+          <div className="mt-1 border border-brand-200 rounded-xl overflow-hidden max-h-36 overflow-y-auto">
+            {stockFiltered(stockSearchVal).length === 0
+              ? <p className="px-3 py-2 text-xs text-slate-400">Not in stock — add manually below</p>
+              : stockFiltered(stockSearchVal).map(p => (
+                <button key={p.id} type="button" onClick={() => { addFromStock(p); setStockSearch(""); }}
+                  className="w-full flex justify-between px-3 py-2.5 text-sm hover:bg-brand-50 border-b border-brand-50 last:border-0">
+                  <span className="font-medium">{p.name}</span>
+                  <span className="font-bold text-brand-700">{inr(p.sellingPrice)}</span>
+                </button>
+              ))
+            }
+          </div>
+        )}
+      </div>
+
+      {/* Item rows — manual entry */}
+      <div>
+        <p className="text-xs font-semibold text-brand-700 mb-1.5">Items</p>
+        <div className="space-y-2">
+          {items.map((item, idx) => (
+            <div key={item.id} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Item name"
+                value={item.name}
+                onChange={e => setItems(items.map((r, i) => i === idx ? { ...r, name: e.target.value } : r))}
+                className="flex-1 rounded-xl border border-brand-200 bg-white px-2 py-2.5 text-sm focus:border-brand-500 focus:outline-none min-w-0"
+              />
+              <input
+                type="number"
+                placeholder="₹"
+                value={item.price || ""}
+                onChange={e => setItems(items.map((r, i) => i === idx ? { ...r, price: Number(e.target.value) } : r))}
+                className="w-20 rounded-xl border border-brand-200 bg-white px-2 py-2.5 text-sm text-center focus:border-brand-500 focus:outline-none normal-case"
+              />
+              <div className="flex items-center gap-1 shrink-0">
+                <button type="button" onClick={() => setItems(items.map((r, i) => i === idx ? { ...r, qty: Math.max(1, r.qty - 1) } : r))} className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 text-brand-700 font-bold flex items-center justify-center">−</button>
+                <span className="w-5 text-center text-sm font-bold">{item.qty}</span>
+                <button type="button" onClick={() => setItems(items.map((r, i) => i === idx ? { ...r, qty: r.qty + 1 } : r))} className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 text-brand-700 font-bold flex items-center justify-center">+</button>
+              </div>
+              <button type="button" onClick={() => setItems(items.length > 1 ? items.filter((_, i) => i !== idx) : [emptyRow()])} className="text-slate-300 hover:text-red-400 shrink-0 p-0.5"><X className="h-4 w-4" /></button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setItems([...items, emptyRow()])}
+            className="w-full py-2 text-xs text-brand-600 border-2 border-dashed border-brand-200 rounded-xl hover:bg-brand-50 transition">
+            + Add another item
+          </button>
+        </div>
+      </div>
+
+      {/* Total + Paid + Balance — show whenever items have names, not just when price > 0 */}
+      {hasNamedItems && (
+        <div className="space-y-2">
+          <div className="flex justify-between items-center bg-brand-50 rounded-xl px-4 py-2.5">
+            <span className="font-semibold text-brand-800">Total Bill</span>
+            <span className="text-xl font-black text-brand-900">{inr(total)}</span>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-brand-700 mb-1">Paid now (₹)</p>
+            <input
+              type="number"
+              placeholder="0 — leave blank if nothing paid yet"
+              value={paid}
+              onChange={e => setPaid(e.target.value)}
+              className="w-full rounded-xl border-2 border-brand-200 bg-white px-3 py-2.5 text-lg font-bold focus:border-brand-500 focus:outline-none normal-case"
+            />
+          </div>
+          <div className={`flex justify-between items-center rounded-xl px-4 py-2.5 ${balance > 0 ? "bg-amber-50 border border-amber-200" : "bg-green-50 border border-green-200"}`}>
+            <span className={`font-bold ${balance > 0 ? "text-amber-700" : "text-green-700"}`}>Balance Due</span>
+            <span className={`text-xl font-black ${balance > 0 ? "text-amber-600" : "text-green-600"}`}>{inr(Math.max(0, balance))}</span>
+          </div>
+        </div>
+      )}
+
+      <input type="text" placeholder="Note (optional)" value={noteVal} onChange={e => setNote(e.target.value)} data-no-caps
+        className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
+    </div>
+  );
+}
 
 export default function KhataPage() {
   const { show } = useToastStore();
@@ -93,21 +210,7 @@ export default function KhataPage() {
     });
   }, [customers, filterMode, searchQ]);
 
-  // ── Purchase item helpers ────────────────────────────────────────────────
-  const itemsTotal = (rows: ItemRow[]) => rows.reduce((s, i) => s + i.qty * i.price, 0);
-
-  const addFromStock = (p: Product, rows: ItemRow[], setRows: (r: ItemRow[]) => void) => {
-    const ex = rows.find(r => r.fromStock && r.name === p.name);
-    if (ex) setRows(rows.map(r => r.name === p.name && r.fromStock ? { ...r, qty: r.qty + 1 } : r));
-    else setRows([...rows.filter(r => r.name || r.price), { id: Math.random().toString(36).slice(2), name: p.name, qty: 1, price: p.sellingPrice, fromStock: true }]);
-  };
-
-  const stockFiltered = (q: string) => {
-    if (!q.trim()) return products.slice(0, 6);
-    return products.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
-  };
-
-  // ── Save new customer + purchase ────────────────────────────────────────
+  // ── DETAIL VIEW ───────────────────────────────────────────────────────────
   const saveNewCustomer = async () => {
     if (!newName.trim()) { show("Enter customer name", "error"); return; }
     const validItems = purchaseItems.filter(i => i.name.trim() && i.price > 0);
@@ -168,84 +271,6 @@ export default function KhataPage() {
     if (!confirm("Delete this customer and all their transactions?")) return;
     try { await api.delete(`/khata/${id}`); show("Deleted ✓"); setDetail(null); loadList(); }
     catch { show("Error", "error"); }
-  };
-
-  // ── Purchase form (reused for new customer and existing) ─────────────────
-  const PurchaseForm = ({
-    items, setItems, stockSearchVal, setStockSearch: setSearch, paid, setPaid, noteVal, setNote,
-  }: {
-    items: ItemRow[]; setItems: (r: ItemRow[]) => void;
-    stockSearchVal: string; setStockSearch: (v: string) => void;
-    paid: string; setPaid: (v: string) => void;
-    noteVal: string; setNote: (v: string) => void;
-  }) => {
-    const total = itemsTotal(items);
-    const balance = total - (Number(paid) || 0);
-    return (
-      <div className="space-y-3">
-        {/* Stock search */}
-        <div>
-          <p className="text-xs font-semibold text-brand-700 mb-1">Add from Stock</p>
-          <input type="text" placeholder="Search saree..." value={stockSearchVal} onChange={e => setSearch(e.target.value)} data-no-caps
-            className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
-          {stockSearchVal.trim() && (
-            <div className="mt-1 border border-brand-200 rounded-xl overflow-hidden max-h-36 overflow-y-auto">
-              {stockFiltered(stockSearchVal).map(p => (
-                <button key={p.id} type="button" onClick={() => { addFromStock(p, items, setItems); setSearch(""); }}
-                  className="w-full flex justify-between px-3 py-2.5 text-sm hover:bg-brand-50 border-b border-brand-50 last:border-0">
-                  <span className="font-medium">{p.name}</span>
-                  <span className="font-bold text-brand-700">{inr(p.sellingPrice)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Manual / existing items */}
-        <div className="space-y-2">
-          {items.map((item, idx) => (
-            <div key={item.id} className="flex items-center gap-2">
-              <input type="text" placeholder="Item name" value={item.name} onChange={e => setItems(items.map((r, i) => i === idx ? { ...r, name: e.target.value } : r))}
-                className="flex-1 rounded-xl border border-brand-200 bg-white px-2 py-2 text-sm focus:border-brand-500 focus:outline-none min-w-0" />
-              <input type="number" placeholder="₹" value={item.price || ""} onChange={e => setItems(items.map((r, i) => i === idx ? { ...r, price: Number(e.target.value) } : r))}
-                className="w-20 rounded-xl border border-brand-200 bg-white px-2 py-2 text-sm text-center focus:border-brand-500 focus:outline-none normal-case" />
-              <div className="flex items-center gap-1">
-                <button onClick={() => setItems(items.map((r, i) => i === idx ? { ...r, qty: Math.max(1, r.qty - 1) } : r))} className="w-7 h-7 rounded-lg bg-brand-50 border border-brand-200 text-brand-700 font-bold flex items-center justify-center text-sm">−</button>
-                <span className="w-5 text-center text-sm font-bold">{item.qty}</span>
-                <button onClick={() => setItems(items.map((r, i) => i === idx ? { ...r, qty: r.qty + 1 } : r))} className="w-7 h-7 rounded-lg bg-brand-50 border border-brand-200 text-brand-700 font-bold flex items-center justify-center text-sm">+</button>
-              </div>
-              <button onClick={() => setItems(items.length > 1 ? items.filter((_, i) => i !== idx) : items.map((r, i) => i === idx ? emptyRow() : r))} className="text-slate-300 hover:text-red-400 shrink-0"><X className="h-4 w-4" /></button>
-            </div>
-          ))}
-          <button onClick={() => setItems([...items, emptyRow()])}
-            className="w-full py-2 text-xs text-brand-600 border-2 border-dashed border-brand-200 rounded-xl hover:bg-brand-50 transition">
-            + Add another item
-          </button>
-        </div>
-
-        {/* Total + Paid + Balance */}
-        {total > 0 && (
-          <div className="space-y-2">
-            <div className="flex justify-between items-center bg-brand-50 rounded-xl px-4 py-2.5">
-              <span className="font-semibold text-brand-800">Total</span>
-              <span className="text-xl font-black text-brand-900">{inr(total)}</span>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-brand-700 mb-1">Paid now (₹)</p>
-              <input type="number" placeholder="0 — leave blank if nothing paid" value={paid} onChange={e => setPaid(e.target.value)}
-                className="w-full rounded-xl border-2 border-brand-200 bg-white px-3 py-2.5 text-lg font-bold focus:border-brand-500 focus:outline-none normal-case" />
-            </div>
-            <div className={`flex justify-between items-center rounded-xl px-4 py-2.5 ${balance > 0 ? "bg-amber-50 border border-amber-200" : "bg-green-50 border border-green-200"}`}>
-              <span className={`font-bold ${balance > 0 ? "text-amber-700" : "text-green-700"}`}>Balance Due</span>
-              <span className={`text-xl font-black ${balance > 0 ? "text-amber-600" : "text-green-600"}`}>{inr(Math.max(0, balance))}</span>
-            </div>
-          </div>
-        )}
-
-        <input type="text" placeholder="Note (optional)" value={noteVal} onChange={e => setNote(e.target.value)} data-no-caps
-          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none" />
-      </div>
-    );
   };
 
   // ── DETAIL VIEW ───────────────────────────────────────────────────────────
@@ -332,6 +357,7 @@ export default function KhataPage() {
           <div className="space-y-4">
             <PurchaseForm
               items={exPurchaseItems} setItems={setExPurchaseItems}
+              products={products}
               stockSearchVal={exStockSearch} setStockSearch={setExStockSearch}
               paid={exPaidNow} setPaid={setExPaidNow}
               noteVal={exPurchaseNote} setNote={setExPurchaseNote}
@@ -481,6 +507,7 @@ export default function KhataPage() {
           </div>
           <PurchaseForm
             items={purchaseItems} setItems={setPurchaseItems}
+            products={products}
             stockSearchVal={stockSearch} setStockSearch={setStockSearch}
             paid={paidNow} setPaid={setPaidNow}
             noteVal={purchaseNote} setNote={setPurchaseNote}
