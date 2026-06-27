@@ -172,6 +172,21 @@ const api = {
       return { data: { categoryWise: toArr(catMap), supplierWise: toArr(supMap), topItems: toArr(itemMap).slice(0, 15), priceRangeWise: toArr(rangeMap), monthlySalesTrend: [...monthMap.entries()].map(([month, v]) => ({ month, ...v })).sort((a, b) => a.month.localeCompare(b.month)) } }
     }
 
+    // ── LEDGER ENTRIES ──
+    if (path === '/ledger') {
+      const { data, error } = await supabase
+        .from('LedgerEntry')
+        .select('*, payments:LedgerPayment(*)')
+        .order('entryDate', { ascending: false })
+      return { data: check(data, error)?.map((e: any) => ({
+        ...e,
+        totalBill: Number(e.totalBill),
+        totalPaid: Number(e.totalPaid),
+        balance: Number(e.totalBill) - Number(e.totalPaid),
+        payments: (e.payments ?? []).map((p: any) => ({ ...p, amount: Number(p.amount) }))
+      })) }
+    }
+
     throw new Error(`Unknown GET path: ${path}`)
   },
 
@@ -291,6 +306,43 @@ const api = {
       return { data: row }
     }
 
+    // ── LEDGER ENTRY ──
+    if (path === '/ledger') {
+      const { customerName, customerPhone, customerId, items, totalBill, totalPaid, notes, entryDate } = data
+      const entryId = crypto.randomUUID()
+      const { error } = await supabase.from('LedgerEntry').insert({
+        id: entryId, entryDate: entryDate || now, customerId: customerId || null,
+        customerName, customerPhone: customerPhone || null,
+        items: JSON.stringify(items || []),
+        totalBill: String(totalBill || 0), totalPaid: String(totalPaid || 0),
+        notes: notes || null, createdAt: now, updatedAt: now
+      })
+      if (error) throw new Error(error.message)
+      // Record initial payment if > 0
+      if (Number(totalPaid) > 0) {
+        await supabase.from('LedgerPayment').insert({
+          id: crypto.randomUUID(), entryId, amount: String(totalPaid),
+          paymentDate: entryDate || now, note: 'Initial payment', createdAt: now
+        })
+      }
+      return { data: { id: entryId } }
+    }
+
+    // ── LEDGER PAYMENT (add payment to existing entry) ──
+    if (path.startsWith('/ledger/') && path.endsWith('/payment')) {
+      const entryId = path.split('/')[2]
+      const { amount, note, paymentDate } = data
+      const { data: entry } = await supabase.from('LedgerEntry').select('totalPaid, totalBill').eq('id', entryId).single()
+      if (!entry) throw new Error('Ledger entry not found')
+      const newPaid = Math.min(Number(entry.totalPaid) + Number(amount), Number(entry.totalBill))
+      await supabase.from('LedgerPayment').insert({
+        id: crypto.randomUUID(), entryId, amount: String(amount),
+        paymentDate: paymentDate || now, note: note || null, createdAt: now
+      })
+      await supabase.from('LedgerEntry').update({ totalPaid: String(newPaid), updatedAt: now }).eq('id', entryId)
+      return { data: { totalPaid: newPaid, balance: Number(entry.totalBill) - newPaid } }
+    }
+
     // ── RECALCULATE CUSTOMER SPEND ──
     if (path.startsWith('/customers/') && path.endsWith('/recalculate')) {
       const custId = path.split('/')[2]
@@ -364,10 +416,9 @@ const api = {
       return { data: null, status: 204 }
     }
 
-    const tableMap: Record<string, string> = { products: 'Product', categories: 'Category', suppliers: 'Supplier', customers: 'Customer', 'price-ranges': 'PriceRange', expenses: 'Expense', sales: 'Sale', purchases: 'Purchase' }
+    const tableMap: Record<string, string> = { products: 'Product', categories: 'Category', suppliers: 'Supplier', customers: 'Customer', 'price-ranges': 'PriceRange', expenses: 'Expense', sales: 'Sale', purchases: 'Purchase', ledger: 'LedgerEntry' }
     const table = tableMap[resource]
     if (!table) throw new Error(`Unknown DELETE: ${path}`)
-
     if (table === 'Sale') {
       // Reverse effects: restock products + fix customer totalSpend
       const { data: sale } = await supabase.from('Sale').select('customerId, totalAmount, items:SaleItem(productId, quantity)').eq('id', id).single()

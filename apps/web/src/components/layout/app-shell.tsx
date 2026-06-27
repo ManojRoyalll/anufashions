@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   ShoppingCart, LayoutDashboard, Box, ShoppingBag,
-  Settings, Home, X, LogOut, ZoomIn, ZoomOut, RefreshCw, ClipboardList, Menu
+  Settings, Home, X, LogOut, ZoomIn, ZoomOut, RefreshCw, ClipboardList, Menu, BookOpen
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useAppStore } from "@/store/app";
@@ -17,6 +17,7 @@ const BOTTOM_TABS = [
   { to: "/stock", label: "Stock", sub: "సరుకు", icon: Box },
   { to: "/buy",  label: "Buy",   sub: "కొనుగోలు", icon: ShoppingBag },
   { to: "/sales-history", label: "Sales", sub: "చరిత్ర", icon: ClipboardList },
+  { to: "/ledger",        label: "Khata", sub: "కాట",    icon: BookOpen },
 ];
 
 // Full sidebar nav (desktop)
@@ -26,6 +27,7 @@ const SIDEBAR_NAV = [
   { to: "/buy",           label: "Buy Stock",      sub: "కొనుగోలు",         icon: ShoppingBag },
   { to: "/stock",         label: "My Stock",       sub: "నా సరుకు",         icon: Box },
   { to: "/sales-history", label: "Sales History",  sub: "అమ్మకాల చరిత్ర",  icon: ClipboardList },
+  { to: "/ledger",        label: "Khata Book",     sub: "కాట పుస్తకం",    icon: BookOpen },
   { to: "/overview",      label: "Overview",       sub: "సారాంశం",          icon: LayoutDashboard },
   { to: "/settings",      label: "Settings",       sub: "సెట్టింగులు",      icon: Settings },
 ];
