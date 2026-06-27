@@ -172,19 +172,24 @@ const api = {
       return { data: { categoryWise: toArr(catMap), supplierWise: toArr(supMap), topItems: toArr(itemMap).slice(0, 15), priceRangeWise: toArr(rangeMap), monthlySalesTrend: [...monthMap.entries()].map(([month, v]) => ({ month, ...v })).sort((a, b) => a.month.localeCompare(b.month)) } }
     }
 
-    // ── LEDGER ENTRIES ──
-    if (path === '/ledger') {
+    // ── KHATA: list customers ──
+    if (path === '/khata') {
       const { data, error } = await supabase
-        .from('LedgerEntry')
-        .select('*, payments:LedgerPayment(*)')
-        .order('entryDate', { ascending: false })
-      return { data: check(data, error)?.map((e: any) => ({
-        ...e,
-        totalBill: Number(e.totalBill),
-        totalPaid: Number(e.totalPaid),
-        balance: Number(e.totalBill) - Number(e.totalPaid),
-        payments: (e.payments ?? []).map((p: any) => ({ ...p, amount: Number(p.amount) }))
-      })) }
+        .from('KhataCustomer')
+        .select('*')
+        .order('updatedAt', { ascending: false })
+      return { data: check(data, error)?.map((c: any) => ({ ...c, balance: Number(c.balance) })) }
+    }
+
+    // ── KHATA: customer detail with transactions ──
+    if (path.startsWith('/khata/') && !path.includes('/tx')) {
+      const id = path.split('/')[2]
+      const [{ data: cust }, { data: txs }] = await Promise.all([
+        supabase.from('KhataCustomer').select('*').eq('id', id).single(),
+        supabase.from('KhataTransaction').select('*').eq('customerId', id).order('txDate', { ascending: false })
+      ])
+      if (!cust) throw new Error('Customer not found')
+      return { data: { ...cust, balance: Number(cust.balance), transactions: (txs ?? []).map((t: any) => ({ ...t, amount: Number(t.amount) })) } }
     }
 
     throw new Error(`Unknown GET path: ${path}`)
@@ -306,41 +311,52 @@ const api = {
       return { data: row }
     }
 
-    // ── LEDGER ENTRY ──
-    if (path === '/ledger') {
-      const { customerName, customerPhone, customerId, items, totalBill, totalPaid, notes, entryDate } = data
-      const entryId = crypto.randomUUID()
-      const { error } = await supabase.from('LedgerEntry').insert({
-        id: entryId, entryDate: entryDate || now, customerId: customerId || null,
-        customerName, customerPhone: customerPhone || null,
-        items: JSON.stringify(items || []),
-        totalBill: String(totalBill || 0), totalPaid: String(totalPaid || 0),
-        notes: notes || null, createdAt: now, updatedAt: now
-      })
-      if (error) throw new Error(error.message)
-      // Record initial payment if > 0
-      if (Number(totalPaid) > 0) {
-        await supabase.from('LedgerPayment').insert({
-          id: crypto.randomUUID(), entryId, amount: String(totalPaid),
-          paymentDate: entryDate || now, note: 'Initial payment', createdAt: now
-        })
+    // ── KHATA: create customer + first purchase ──
+    if (path === '/khata') {
+      const { name, phone, items, totalCost, paidNow, note, txDate } = data
+      const customerId = crypto.randomUUID()
+      const balance = Number(totalCost) - Number(paidNow || 0)
+      const { error: ce } = await supabase.from('KhataCustomer').insert({ id: customerId, name, phone: phone || null, balance: String(balance), createdAt: now, updatedAt: now })
+      if (ce) throw new Error(ce.message)
+      // Record purchase transaction
+      await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PURCHASE', amount: String(totalCost), items: JSON.stringify(items || []), note: note || null, txDate: txDate || now, createdAt: now })
+      // Record initial payment if any
+      if (Number(paidNow) > 0) {
+        await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PAYMENT', amount: String(paidNow), items: '[]', note: 'Initial payment', txDate: txDate || now, createdAt: now })
       }
-      return { data: { id: entryId } }
+      return { data: { id: customerId, balance } }
     }
 
-    // ── LEDGER PAYMENT (add payment to existing entry) ──
-    if (path.startsWith('/ledger/') && path.endsWith('/payment')) {
-      const entryId = path.split('/')[2]
-      const { amount, note, paymentDate } = data
-      const { data: entry } = await supabase.from('LedgerEntry').select('totalPaid, totalBill').eq('id', entryId).single()
-      if (!entry) throw new Error('Ledger entry not found')
-      const newPaid = Math.min(Number(entry.totalPaid) + Number(amount), Number(entry.totalBill))
-      await supabase.from('LedgerPayment').insert({
-        id: crypto.randomUUID(), entryId, amount: String(amount),
-        paymentDate: paymentDate || now, note: note || null, createdAt: now
-      })
-      await supabase.from('LedgerEntry').update({ totalPaid: String(newPaid), updatedAt: now }).eq('id', entryId)
-      return { data: { totalPaid: newPaid, balance: Number(entry.totalBill) - newPaid } }
+    // ── KHATA: add purchase to existing customer ──
+    if (path.startsWith('/khata/') && path.endsWith('/purchase')) {
+      const customerId = path.split('/')[2]
+      const { items, totalCost, paidNow, note, txDate } = data
+      const purchaseAmt = Number(totalCost)
+      const payAmt = Number(paidNow || 0)
+      // Add purchase tx
+      await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PURCHASE', amount: String(purchaseAmt), items: JSON.stringify(items || []), note: note || null, txDate: txDate || now, createdAt: now })
+      // Add payment tx if any
+      if (payAmt > 0) {
+        await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PAYMENT', amount: String(payAmt), items: '[]', note: 'Paid at purchase', txDate: txDate || now, createdAt: now })
+      }
+      // Update running balance
+      const delta = purchaseAmt - payAmt
+      const { data: cust } = await supabase.from('KhataCustomer').select('balance').eq('id', customerId).single()
+      const newBalance = Number(cust?.balance ?? 0) + delta
+      await supabase.from('KhataCustomer').update({ balance: String(newBalance), updatedAt: now }).eq('id', customerId)
+      return { data: { balance: newBalance } }
+    }
+
+    // ── KHATA: add payment to existing customer ──
+    if (path.startsWith('/khata/') && path.endsWith('/payment')) {
+      const customerId = path.split('/')[2]
+      const { amount, note, txDate } = data
+      const payAmt = Number(amount)
+      await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PAYMENT', amount: String(payAmt), items: '[]', note: note || null, txDate: txDate || now, createdAt: now })
+      const { data: cust } = await supabase.from('KhataCustomer').select('balance').eq('id', customerId).single()
+      const newBalance = Math.max(0, Number(cust?.balance ?? 0) - payAmt)
+      await supabase.from('KhataCustomer').update({ balance: String(newBalance), updatedAt: now }).eq('id', customerId)
+      return { data: { balance: newBalance } }
     }
 
     // ── RECALCULATE CUSTOMER SPEND ──
@@ -416,7 +432,7 @@ const api = {
       return { data: null, status: 204 }
     }
 
-    const tableMap: Record<string, string> = { products: 'Product', categories: 'Category', suppliers: 'Supplier', customers: 'Customer', 'price-ranges': 'PriceRange', expenses: 'Expense', sales: 'Sale', purchases: 'Purchase', ledger: 'LedgerEntry' }
+    const tableMap: Record<string, string> = { products: 'Product', categories: 'Category', suppliers: 'Supplier', customers: 'Customer', 'price-ranges': 'PriceRange', expenses: 'Expense', sales: 'Sale', purchases: 'Purchase', khata: 'KhataCustomer', 'khata-tx': 'KhataTransaction' }
     const table = tableMap[resource]
     if (!table) throw new Error(`Unknown DELETE: ${path}`)
     if (table === 'Sale') {
