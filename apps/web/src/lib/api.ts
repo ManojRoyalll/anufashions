@@ -189,7 +189,11 @@ const api = {
         supabase.from('KhataTransaction').select('*').eq('customerId', id).order('txDate', { ascending: false })
       ])
       if (!cust) throw new Error('Customer not found')
-      return { data: { ...cust, balance: Number(cust.balance), transactions: (txs ?? []).map((t: any) => ({ ...t, amount: Number(t.amount) })) } }
+      return { data: { ...cust, balance: Number(cust.balance), transactions: (txs ?? []).map((t: any) => ({
+        ...t,
+        amount: Number(t.amount),
+        items: typeof t.items === 'string' ? JSON.parse(t.items) : (t.items ?? [])
+      })) } }
     }
 
     throw new Error(`Unknown GET path: ${path}`)
@@ -319,7 +323,7 @@ const api = {
       const { error: ce } = await supabase.from('KhataCustomer').insert({ id: customerId, name, phone: phone || null, balance: String(balance), createdAt: now, updatedAt: now })
       if (ce) throw new Error(ce.message)
       // Record purchase transaction
-      await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PURCHASE', amount: String(totalCost), items: JSON.stringify(items || []), note: note || null, txDate: txDate || now, createdAt: now })
+      await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PURCHASE', amount: String(totalCost), items: items || [], note: note || null, txDate: txDate || now, createdAt: now })
       // Record initial payment if any
       if (Number(paidNow) > 0) {
         await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PAYMENT', amount: String(paidNow), items: '[]', note: 'Initial payment', txDate: txDate || now, createdAt: now })
@@ -334,7 +338,7 @@ const api = {
       const purchaseAmt = Number(totalCost)
       const payAmt = Number(paidNow || 0)
       // Add purchase tx
-      await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PURCHASE', amount: String(purchaseAmt), items: JSON.stringify(items || []), note: note || null, txDate: txDate || now, createdAt: now })
+      await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PURCHASE', amount: String(purchaseAmt), items: items || [], note: note || null, txDate: txDate || now, createdAt: now })
       // Add payment tx if any
       if (payAmt > 0) {
         await supabase.from('KhataTransaction').insert({ id: crypto.randomUUID(), customerId, type: 'PAYMENT', amount: String(payAmt), items: '[]', note: 'Paid at purchase', txDate: txDate || now, createdAt: now })
