@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
-  ShoppingCart, LayoutDashboard, Box, ShoppingBag,
-  Settings, Home, X, LogOut, ZoomIn, ZoomOut, RefreshCw, ClipboardList, Menu, BookOpen
+  ShoppingCart, LayoutDashboard, Box,
+  Settings, X, LogOut, ZoomIn, ZoomOut, RefreshCw, ClipboardList, Menu, BookOpen, Store
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useAppStore } from "@/store/app";
@@ -10,26 +10,24 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
-// Bottom tab bar items (5 most-used)
+// Bottom tab bar — 5 core sections
 const BOTTOM_TABS = [
-  { to: "/home", label: "Home", sub: "హోమ్", icon: Home },
-  { to: "/",     label: "Sell",  sub: "అమ్మకం", icon: ShoppingCart },
-  { to: "/stock", label: "Stock", sub: "సరుకు", icon: Box },
-  { to: "/buy",  label: "Buy",   sub: "కొనుగోలు", icon: ShoppingBag },
-  { to: "/sales-history", label: "Sales", sub: "చరిత్ర", icon: ClipboardList },
-  { to: "/ledger",        label: "Khata", sub: "కాట",    icon: BookOpen },
+  { to: "/stock",         label: "Stock",   sub: "నా సరుకు",   icon: Box },
+  { to: "/",              label: "Sell",    sub: "అమ్మకం",     icon: ShoppingCart },
+  { to: "/sales-history", label: "Sales",   sub: "అమ్మకాలు",  icon: ClipboardList },
+  { to: "/ledger",        label: "Khata",   sub: "కాట",        icon: BookOpen },
+  { to: "/vendors",       label: "Vendors", sub: "వ్యాపారులు", icon: Store },
 ];
 
-// Full sidebar nav (desktop)
+// Full sidebar nav (desktop) — same 5 core + settings
 const SIDEBAR_NAV = [
-  { to: "/home",          label: "Home",          sub: "హోమ్",              icon: Home },
-  { to: "/",              label: "Sell",           sub: "అమ్మకం",           icon: ShoppingCart },
-  { to: "/buy",           label: "Buy Stock",      sub: "కొనుగోలు",         icon: ShoppingBag },
-  { to: "/stock",         label: "My Stock",       sub: "నా సరుకు",         icon: Box },
-  { to: "/sales-history", label: "Sales History",  sub: "అమ్మకాల చరిత్ర",  icon: ClipboardList },
-  { to: "/ledger",        label: "Khata Book",     sub: "కాట పుస్తకం",    icon: BookOpen },
-  { to: "/overview",      label: "Overview",       sub: "సారాంశం",          icon: LayoutDashboard },
-  { to: "/settings",      label: "Settings",       sub: "సెట్టింగులు",      icon: Settings },
+  { to: "/stock",         label: "My Stock",     sub: "నా సరుకు",         icon: Box },
+  { to: "/",              label: "Sell",         sub: "అమ్మకం",           icon: ShoppingCart },
+  { to: "/sales-history", label: "Sales",        sub: "అమ్మకాల చరిత్ర",  icon: ClipboardList },
+  { to: "/ledger",        label: "Khata Book",   sub: "కాట పుస్తకం",     icon: BookOpen },
+  { to: "/vendors",       label: "Vendors",      sub: "వ్యాపారులు",       icon: Store },
+  { to: "/overview",      label: "Overview",     sub: "సారాంశం",          icon: LayoutDashboard },
+  { to: "/settings",      label: "Settings",     sub: "సెట్టింగులు",      icon: Settings },
 ];
 
 export default function AppShell() {

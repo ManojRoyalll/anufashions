@@ -6,6 +6,7 @@ import LedgerPage from "@/pages/ledger";
 import SalesHistoryPage from "@/pages/sales-history";
 import BuyPage from "@/pages/buy";
 import ProductsPage from "@/pages/products";
+import VendorsPage from "@/pages/vendors";
 import OverviewPage from "@/pages/overview";
 import SettingsPage from "@/pages/settings";
 import LoginPage from "@/pages/login";
@@ -34,14 +35,15 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<Protected><AppShell /></Protected>}>
         <Route path="/home" element={<HomePage />} />
-        {/* Primary 5-item nav */}
-        <Route path="/" element={<SalesPage />} />
-        <Route path="/buy" element={<BuyPage />} />
+        {/* ── CORE 5 SECTIONS ── */}
         <Route path="/stock" element={<ProductsPage />} />
+        <Route path="/" element={<SalesPage />} />
+        <Route path="/sales-history" element={<SalesHistoryPage />} />
+        <Route path="/ledger" element={<LedgerPage />} />
+        <Route path="/vendors" element={<VendorsPage />} />
+        {/* ── SECONDARY ── */}
         <Route path="/overview" element={<OverviewPage />} />
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/ledger" element={<LedgerPage />} />
-        <Route path="/sales-history" element={<SalesHistoryPage />} />
         {/* Legacy routes kept working */}
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/products" element={<ProductsPage />} />

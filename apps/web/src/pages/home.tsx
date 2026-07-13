@@ -3,60 +3,12 @@ import { useAuthStore } from "@/store/auth";
 import { useLang } from "@/hooks/use-lang";
 
 const TILES = [
-  {
-    to: "/",
-    emoji: "💰",
-    label: "Sell",
-    sub: "అమ్మకం",
-    desc: "Bill customers",
-    bg: "from-brand-600 to-brand-700",
-    shadow: "shadow-brand-300",
-  },
-  {
-    to: "/stock",
-    emoji: "📦",
-    label: "My Stock",
-    sub: "నా సరుకు",
-    desc: "View & manage sarees",
-    bg: "from-terra-400 to-terra-500",
-    shadow: "shadow-terra-300",
-  },
-  {
-    to: "/buy",
-    emoji: "🛒",
-    label: "Buy Stock",
-    sub: "కొనుగోలు",
-    desc: "Add new purchases",
-    bg: "from-brand-500 to-brand-600",
-    shadow: "shadow-brand-200",
-  },
-  {
-    to: "/sales-history",
-    emoji: "📋",
-    label: "Sales",
-    sub: "అమ్మకాల చరిత్ర",
-    desc: "History & reports",
-    bg: "from-terra-300 to-terra-400",
-    shadow: "shadow-terra-200",
-  },
-  {
-    to: "/overview",
-    emoji: "📊",
-    label: "Overview",
-    sub: "సారాంశం",
-    desc: "Business analytics",
-    bg: "from-brand-400 to-brand-500",
-    shadow: "shadow-brand-200",
-  },
-  {
-    to: "/settings",
-    emoji: "⚙️",
-    label: "Settings",
-    sub: "సెట్టింగులు",
-    desc: "Manage categories & more",
-    bg: "from-slate-500 to-slate-600",
-    shadow: "shadow-slate-300",
-  },
+  { to: "/stock",         emoji: "📦", label: "My Stock",    sub: "నా సరుకు",     desc: "Manage sarees & print labels", bg: "from-brand-600 to-brand-700" },
+  { to: "/",              emoji: "💰", label: "Sell",        sub: "అమ్మకం",       desc: "Bill customers, scan QR",      bg: "from-terra-400 to-terra-500" },
+  { to: "/sales-history", emoji: "📋", label: "Sales",       sub: "అమ్మకాలు",    desc: "All bills & history",          bg: "from-brand-500 to-brand-600" },
+  { to: "/ledger",        emoji: "📒", label: "Khata Book",  sub: "కాట పుస్తకం", desc: "Credit & balance tracking",    bg: "from-terra-300 to-terra-400" },
+  { to: "/vendors",       emoji: "🏪", label: "Vendors",     sub: "వ్యాపారులు",   desc: "Suppliers, buy stock, bills",  bg: "from-brand-400 to-brand-500" },
+  { to: "/settings",      emoji: "⚙️", label: "Settings",    sub: "సెట్టింగులు",  desc: "Categories & preferences",     bg: "from-slate-500 to-slate-600" },
 ];
 
 export default function HomePage() {
