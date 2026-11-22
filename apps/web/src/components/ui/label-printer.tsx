@@ -1,133 +1,245 @@
 import { useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
-import { Download, RotateCcw } from "lucide-react";
+import { Download, Sparkles, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inr, generateItemCode } from "@/lib/utils";
 
-type Product = {
-  id: string; code: string; name: string;
-  sellingPrice: number; quantity: number; category?: { name: string };
-};
-
 type LabelSize = { w: number; h: number; label: string };
-
 const DEFAULT_SIZE: LabelSize = { label: "Josh Standard (100×50mm)", w: 100, h: 50 };
 
-// ── LAYOUT TYPE ───────────────────────────────────────────────────────────────
-type FieldCfg = { visible: boolean; x: number; y: number; fontSize: number; bold: boolean };
-type QrCfg    = { visible: boolean; x: number; y: number; size: number };
+// ── DECORATIVE LADY IN SAREE (vector silhouette, print-crisp) ─────────────────
+function drawLady(ctx: CanvasRenderingContext2D, cx: number, top: number, h: number) {
+  const u = h / 10;
+  const pink = "#c2185b";
+  const deep = "#7d103b";
+  const gold = "#d4a017";
 
-type LabelLayout = {
-  qr:       QrCfg;
-  shopName: FieldCfg;
-  itemName: FieldCfg;
-  itemCode: FieldCfg;
-};
+  const shoulderY = top + 2.0 * u;
+  const waistY    = top + 4.4 * u;
+  const hemY      = top + 10 * u;
+  const sW = 1.25 * u; // shoulder half-width
+  const wW = 0.72 * u; // waist half-width
+  const hW = 2.3 * u;  // hem half-width (saree flare)
 
-function defaultLayout(size: LabelSize): LabelLayout {
-  const REF_W = 100, REF_H = 50;
-  const sX = size.w / REF_W;
-  const sY = size.h / REF_H;
-  const sF = Math.min(sX, sY);
-  const x = (mm: number) => Math.round(mm * sX * 10) / 10;
-  const y = (mm: number) => Math.round(mm * sY * 10) / 10;
-  const f = (mm: number) => Math.round(mm * sF * 10) / 10;
-  return {
-    shopName: { visible: true, x: x(5.5),  y: y(4.5),  fontSize: f(5.5),  bold: false },
-    qr:       { visible: true, x: x(5.5),  y: y(13.5), size: f(30.0) },
-    itemName: { visible: true, x: x(40.0), y: y(13.0), fontSize: f(5.5),  bold: false },
-    itemCode: { visible: true, x: x(41.0), y: y(24.0), fontSize: f(7.0),  bold: true  },
-  };
+  // Saree body
+  ctx.fillStyle = pink;
+  ctx.beginPath();
+  ctx.moveTo(cx + sW, shoulderY);
+  ctx.quadraticCurveTo(cx + wW * 1.15, (shoulderY + waistY) / 2, cx + wW, waistY);
+  ctx.quadraticCurveTo(cx + hW * 0.8, (waistY + hemY) / 2, cx + hW, hemY);
+  ctx.quadraticCurveTo(cx, hemY + 0.5 * u, cx - hW, hemY);
+  ctx.quadraticCurveTo(cx - hW * 0.8, (waistY + hemY) / 2, cx - wW, waistY);
+  ctx.quadraticCurveTo(cx - wW * 1.15, (shoulderY + waistY) / 2, cx - sW, shoulderY);
+  ctx.quadraticCurveTo(cx, shoulderY - 0.55 * u, cx + sW, shoulderY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Neck + head + hair bun
+  ctx.fillStyle = deep;
+  ctx.fillRect(cx - 0.28 * u, top + 1.4 * u, 0.56 * u, 0.9 * u);
+  ctx.beginPath(); ctx.arc(cx, top + 0.95 * u, 0.85 * u, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, top + 0.18 * u, 0.5 * u, 0, Math.PI * 2); ctx.fill();
+
+  // Pallu drape (gold) across the saree
+  ctx.strokeStyle = gold; ctx.lineWidth = 0.5 * u; ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx - sW * 0.9, shoulderY);
+  ctx.quadraticCurveTo(cx + wW, waistY + 0.6 * u, cx + hW * 0.6, hemY - 0.6 * u);
+  ctx.stroke();
+
+  // Gold hem trim
+  ctx.lineWidth = 0.32 * u;
+  ctx.beginPath();
+  ctx.moveTo(cx - hW, hemY);
+  ctx.quadraticCurveTo(cx, hemY + 0.5 * u, cx + hW, hemY);
+  ctx.stroke();
+
+  // Bindi
+  ctx.fillStyle = gold;
+  ctx.beginPath(); ctx.arc(cx, top + 0.72 * u, 0.11 * u, 0, Math.PI * 2); ctx.fill();
 }
 
-// ── CANVAS RENDERER ───────────────────────────────────────────────────────────
-function displayCode(code: string) { return code || "ANU-000"; }
-function safeName(name: string)    { return name.replace(/[^a-zA-Z0-9\s\-_]/g, "").trim().replace(/\s+/g, "-") || "label"; }
+// ── DECORATIVE FLORAL / PLANT BORDER (vector, print-crisp) ────────────────────
+function drawFloralBorder(ctx: CanvasRenderingContext2D, W: number, H: number, u: number) {
+  const gold = "#c99a2e";
+  const pink = "#c2185b";
+  const leaf = "#5a8f52";
 
-async function renderLabelCanvas(
-  product: Product,
-  qrDataUrl: string,
+  const m = u * 3;            // outer margin
+  const r = u * 3;            // corner radius
+
+  const roundRect = (x: number, y: number, w: number, h: number, rad: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x + rad, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rad);
+    ctx.arcTo(x + w, y + h, x, y + h, rad);
+    ctx.arcTo(x, y + h, x, y, rad);
+    ctx.arcTo(x, y, x + w, y, rad);
+    ctx.closePath();
+  };
+
+  // Double border: gold outer, thin pink inner
+  ctx.strokeStyle = gold; ctx.lineWidth = u * 0.55;
+  roundRect(m, m, W - 2 * m, H - 2 * m, r); ctx.stroke();
+  ctx.strokeStyle = pink; ctx.lineWidth = u * 0.2;
+  roundRect(m + u * 1.1, m + u * 1.1, W - 2 * (m + u * 1.1), H - 2 * (m + u * 1.1), r); ctx.stroke();
+
+  // A little flower with petals + a leaf
+  const flower = (cx: number, cy: number, s: number) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = pink;
+    for (let k = 0; k < 6; k++) {
+      ctx.beginPath();
+      ctx.ellipse(0, -s * 1.1, s * 0.5, s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.rotate(Math.PI / 3);
+    }
+    ctx.fillStyle = gold;
+    ctx.beginPath(); ctx.arc(0, 0, s * 0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  };
+  const leafShape = (cx: number, cy: number, s: number, rot: number) => {
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(rot);
+    ctx.fillStyle = leaf;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 1.4, s * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  const s = u * 1.4;
+  const corners: [number, number, number][] = [
+    [m + u * 1.2, m + u * 1.2, 0],
+    [W - m - u * 1.2, m + u * 1.2, Math.PI / 2],
+    [m + u * 1.2, H - m - u * 1.2, -Math.PI / 2],
+    [W - m - u * 1.2, H - m - u * 1.2, Math.PI],
+  ];
+  for (const [cx, cy, rot] of corners) {
+    leafShape(cx + Math.cos(rot + 0.6) * s * 1.6, cy + Math.sin(rot + 0.6) * s * 1.6, s, rot + 0.6);
+    leafShape(cx + Math.cos(rot - 0.2) * s * 1.8, cy + Math.sin(rot - 0.2) * s * 1.8, s * 0.8, rot - 0.2);
+    flower(cx, cy, s);
+  }
+}
+
+function safeName(name: string) {
+  return name.replace(/[^a-zA-Z0-9\s\-_]/g, "").trim().replace(/\s+/g, "-") || "label";
+}
+
+// ── DESIGNED LABEL RENDERER (no QR) ───────────────────────────────────────────
+// Layout: decorative floral/plant border, a lady in saree on the right, and
+// three stacked text lines on the left — Anu Fashions / item name / bottom line.
+function renderDesignedLabel(
+  opts: { name: string; bottom: string; bottomCaption?: string },
   size: LabelSize,
-  layout: LabelLayout,
-): Promise<HTMLCanvasElement> {
+): HTMLCanvasElement {
   const DPI = 300;
   const MM  = DPI / 25.4;
-
-  const W = Math.round(size.w * MM);
-  const H = Math.round(size.h * MM);
-  const px = (mm: number) => Math.round(mm * MM);
+  const W   = Math.round(size.w * MM);
+  const H   = Math.round(size.h * MM);
+  const px  = (mm: number) => Math.round(mm * MM);
+  const sc  = size.h / 50; // scale fonts relative to a 50mm-tall reference
 
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "white";
+
+  // Background
+  ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
+
+  // Decorative floral / plant border
+  drawFloralBorder(ctx, W, H, px(1.6 * sc));
+
+  const pad = px(6 * sc);
+
+  // Lady in saree on the right side
+  const ladyBoxH = H - 2 * pad;
+  const ladyW = ladyBoxH * 0.46;
+  const ladyCx = W - pad - ladyW / 2;
+  drawLady(ctx, ladyCx, pad, ladyBoxH);
+  const ladyLeft = ladyCx - ladyW / 2 - px(2 * sc);
+
+  // Text column
   ctx.textBaseline = "top";
-  ctx.fillStyle = "#000";
+  const textX = pad + px(1 * sc);
+  const textMaxW = ladyLeft - textX;
 
-  if (layout.qr.visible && qrDataUrl) {
-    const qrImg = new Image();
-    qrImg.src = qrDataUrl;
-    await new Promise<void>((res) => { qrImg.onload = () => res(); });
-    const s = px(layout.qr.size);
-    ctx.drawImage(qrImg, px(layout.qr.x), px(layout.qr.y), s, s);
-  }
-
-  const wrap = (text: string, font: string, maxPx: number): string[] => {
+  const wrap = (text: string, font: string, maxW: number): string[] => {
     ctx.font = font;
-    if (ctx.measureText(text).width <= maxPx) return [text];
+    if (ctx.measureText(text).width <= maxW) return [text];
     const words = text.split(/\s+/);
     const lines: string[] = []; let cur = "";
     for (const w of words) {
       const t = cur ? `${cur} ${w}` : w;
-      if (ctx.measureText(t).width > maxPx && cur) { lines.push(cur); cur = w; }
+      if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; }
       else { cur = t; }
     }
     if (cur) lines.push(cur);
     return lines;
   };
 
-  const drawField = (cfg: FieldCfg, text: string) => {
-    if (!cfg.visible) return;
-    const fpx  = px(cfg.fontSize);
-    const font = `${cfg.bold ? "bold " : ""}${fpx}px Arial`;
-    const maxW = W - px(cfg.x) - px(1.5);
-    const lineH = Math.round(fpx * 1.35);
-    let y = px(cfg.y);
-    for (const line of wrap(text, font, maxW)) {
-      ctx.font = font;
-      ctx.fillText(line, px(cfg.x), y);
-      y += lineH;
-    }
-  };
+  const shopPx    = px(7.0 * sc);
+  const namePx    = px(5.5 * sc);
+  const captionPx = px(3.2 * sc);
+  const bottomPx  = px(8.0 * sc);
 
-  const drawCode = (cfg: FieldCfg, code: string) => {
-    if (!cfg.visible) return;
-    const fpx   = px(cfg.fontSize);
-    const font  = `${cfg.bold ? "bold " : ""}${fpx}px Arial`;
-    const lineH = Math.round(fpx * 1.45);
-    const parts = code.split(/-(?=MP)/).filter(Boolean);
-    let y = px(cfg.y);
-    ctx.font = font;
-    for (const part of parts) {
-      ctx.fillText(part, px(cfg.x), y);
-      y += lineH;
-    }
-  };
+  // Vertically center the whole text block
+  const nameFont = `600 ${namePx}px Georgia, 'Times New Roman', serif`;
+  const nameLines = wrap(opts.name, nameFont, textMaxW);
+  const nameLineH = Math.round(namePx * 1.2);
+  const blockH =
+    Math.round(shopPx * 1.5) +
+    nameLines.length * nameLineH +
+    Math.round(4 * sc * MM) +
+    (opts.bottomCaption ? Math.round(captionPx * 1.4) : 0) +
+    Math.round(bottomPx * 1.1);
+  let y = Math.max(pad + px(1.5 * sc), (H - blockH) / 2);
 
-  drawField(layout.shopName, "Anu Fashions");
-  drawField(layout.itemName, product.name);
-  drawCode(layout.itemCode, displayCode(product.code));
+  // Shop name — elegant serif, brand magenta
+  ctx.fillStyle = "#c2185b";
+  ctx.font = `bold ${shopPx}px Georgia, 'Times New Roman', serif`;
+  ctx.fillText("Anu Fashions", textX, y);
+  y += Math.round(shopPx * 1.5);
+
+  // Item name
+  ctx.fillStyle = "#1f2937";
+  ctx.font = nameFont;
+  for (const line of nameLines) {
+    ctx.fillText(line, textX, y);
+    y += nameLineH;
+  }
+  y += Math.round(3 * sc * MM);
+
+  // Caption (e.g. "Bill Code" / "Price")
+  if (opts.bottomCaption) {
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = `${captionPx}px Arial`;
+    ctx.fillText(opts.bottomCaption.toUpperCase(), textX, y);
+    y += Math.round(captionPx * 1.4);
+  }
+
+  // Bottom line — bold (bill code or price). Shrink to fit the text column.
+  let fitPx = bottomPx;
+  ctx.font = `bold ${fitPx}px Arial`;
+  while (fitPx > px(3 * sc) && ctx.measureText(opts.bottom).width > textMaxW) {
+    fitPx -= 1;
+    ctx.font = `bold ${fitPx}px Arial`;
+  }
+  ctx.fillStyle = "#7d103b";
+  for (const line of wrap(opts.bottom, `bold ${fitPx}px Arial`, textMaxW)) {
+    ctx.fillText(line, textX, y);
+    y += Math.round(fitPx * 1.15);
+  }
 
   return canvas;
 }
 
-// ── GENERIC PDF BUILDER ─────────────────────────────────────────────────────
+// ── PDF BUILDER ─────────────────────────────────────────────────────────────
 function buildPdf(pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }>, size: LabelSize): Blob {
   const MM_TO_PT = 2.8346;
   const pageW = size.w * MM_TO_PT;
   const pageH = size.h * MM_TO_PT;
-
   if (pages.length === 0) return new Blob([], { type: "application/pdf" });
 
   const enc = new TextEncoder();
@@ -138,7 +250,6 @@ function buildPdf(pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }>,
   const writeB = (b: Uint8Array) => { parts.push(b); pos += b.length; };
 
   write("%PDF-1.4\n%\xFF\xFF\xFF\xFF\n");
-
   const N = pages.length;
   const pageBase = 3, contentBase = pageBase + N, imageBase = contentBase + N;
 
@@ -150,11 +261,9 @@ function buildPdf(pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }>,
     const { canvas, jpeg } = pages[i];
     offsets[pageBase + i] = pos;
     write(`${pageBase+i} 0 obj\n<< /Type /Page /Parent 2 0 R\n/MediaBox [0 0 ${pageW.toFixed(3)} ${pageH.toFixed(3)}]\n/Contents ${contentBase+i} 0 R\n/Resources << /XObject << /Im1 ${imageBase+i} 0 R >> >>\n>>\nendobj\n`);
-
     const stream = `q ${pageW.toFixed(3)} 0 0 ${pageH.toFixed(3)} 0 0 cm /Im1 Do Q`;
     offsets[contentBase + i] = pos;
     write(`${contentBase+i} 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`);
-
     offsets[imageBase + i] = pos;
     write(`${imageBase+i} 0 obj\n<< /Type /XObject /Subtype /Image\n/Width ${canvas.width} /Height ${canvas.height}\n/ColorSpace /DeviceRGB /BitsPerComponent 8\n/Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`);
     writeB(jpeg);
@@ -184,92 +293,53 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// ── CANVAS PREVIEW (WYSIWYG) ─────────────────────────────────────────────────
-function CanvasPreview({ product, qr, size, layout }: { product: Product; qr: string; size: LabelSize; layout: LabelLayout }) {
-  const [src, setSrc] = useState("");
-  useEffect(() => {
-    if (!qr) return;
-    renderLabelCanvas(product, qr, size, layout).then((c) => setSrc(c.toDataURL("image/png")));
-  }, [product, qr, size, layout]);
-  const maxW = Math.min(size.w * 3.5, 360);
-  const maxH = Math.round(maxW * (size.h / size.w));
-  return src
-    ? <img src={src} style={{ width: maxW, height: maxH, borderRadius: 6, border: "1px solid #ddd", display:"block" }} alt="preview" />
-    : <div style={{ width: maxW, height: maxH, background: "#f5f5f0", borderRadius: 6 }} className="animate-pulse" />;
-}
-
-// ── SLIDER CONTROL ────────────────────────────────────────────────────────────
-function SliderControl({
-  label, value, min, max, step = 0.5, onChange,
-}: {
-  label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void;
+// ── SHARED UI PIECES ──────────────────────────────────────────────────────────
+function Field({ label, value, onChange, placeholder, type = "text" }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
 }) {
-  const clamp = (v: number) => Math.round(Math.min(max, Math.max(min, v)) / step) * step;
-  const dec = () => onChange(clamp(value - step));
-  const inc = () => onChange(clamp(value + step));
-  const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
   return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-brand-700">{label}</span>
-        <span className="text-[11px] font-bold text-brand-900 tabular-nums">{value.toFixed(1)} mm</span>
-      </div>
-      <div className="relative h-6 flex items-center">
-        <div className="absolute inset-x-0 h-1.5 rounded-full bg-brand-100" />
-        <div className="absolute h-1.5 rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
-        <input
-          type="range" min={min} max={max} step={step} value={value}
-          onChange={(e) => onChange(clamp(Number(e.target.value)))}
-          className="relative w-full h-1.5 appearance-none bg-transparent cursor-pointer
-            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
-            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand-700
-            [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer
-            [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
-            [&::-moz-range-thumb]:bg-brand-700 [&::-moz-range-thumb]:border-0"
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <button onClick={dec} className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100 active:bg-brand-200 touch-manipulation select-none">−</button>
-        <div className="flex-1 text-center text-sm font-bold text-brand-900 bg-brand-50 rounded-xl py-2">{value.toFixed(1)}</div>
-        <button onClick={inc} className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100 active:bg-brand-200 touch-manipulation select-none">+</button>
-      </div>
-    </div>
+    <label className="block">
+      <span className="text-xs font-semibold text-brand-700">{label}</span>
+      <input
+        type={type} autoComplete="off" placeholder={placeholder} inputMode={type === "number" ? "decimal" : undefined}
+        value={value} onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full rounded-xl border border-brand-200 bg-white px-3 py-2.5 text-base shadow-sm focus:border-brand-500 focus:outline-none"
+      />
+    </label>
   );
 }
 
-// ── SIZE PICKER (shared) ──────────────────────────────────────────────────────
 function SizePicker({ size, onChange }: { size: LabelSize; onChange: (s: LabelSize) => void }) {
   const [showCustom, setShowCustom] = useState(false);
   const [customW, setCustomW] = useState(String(size.w));
   const [customH, setCustomH] = useState(String(size.h));
   const isDefault = size.w === DEFAULT_SIZE.w && size.h === DEFAULT_SIZE.h;
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <button
-        onClick={() => { setShowCustom(false); onChange(DEFAULT_SIZE); }}
-        className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition ${
-          isDefault && !showCustom ? "bg-brand-600 text-white border-brand-600" : "bg-white text-brand-700 border-brand-200"
-        }`}
-      >
-        Josh Standard (100×50mm)
-      </button>
-      <button
-        onClick={() => setShowCustom(v => !v)}
-        className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition ${
-          showCustom ? "bg-brand-600 text-white border-brand-600" : "bg-white text-brand-700 border-brand-200"
-        }`}
-      >
-        Custom Size
-      </button>
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => { setShowCustom(false); onChange(DEFAULT_SIZE); }}
+          className={`rounded-xl px-3 py-2.5 text-sm font-semibold border-2 transition ${
+            isDefault && !showCustom ? "bg-brand-600 text-white border-brand-600" : "bg-white text-brand-700 border-brand-200"
+          }`}
+        >100 × 50 mm</button>
+        <button
+          onClick={() => setShowCustom(v => !v)}
+          className={`rounded-xl px-3 py-2.5 text-sm font-semibold border-2 transition ${
+            showCustom ? "bg-brand-600 text-white border-brand-600" : "bg-white text-brand-700 border-brand-200"
+          }`}
+        >Custom Size</button>
+      </div>
       {showCustom && (
-        <div className="flex items-center gap-2 w-full mt-1">
-          <span className="text-xs text-slate-500">W mm:</span>
-          <input type="number" value={customW} onChange={e => setCustomW(e.target.value)} className="w-16 rounded-xl border border-brand-200 px-2 py-1.5 text-sm text-center" />
-          <span className="text-xs text-slate-500">H mm:</span>
-          <input type="number" value={customH} onChange={e => setCustomH(e.target.value)} className="w-16 rounded-xl border border-brand-200 px-2 py-1.5 text-sm text-center" />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500">W</span>
+          <input type="number" inputMode="decimal" value={customW} onChange={e => setCustomW(e.target.value)} className="w-16 rounded-xl border border-brand-200 px-2 py-2 text-sm text-center" />
+          <span className="text-xs text-slate-500">H</span>
+          <input type="number" inputMode="decimal" value={customH} onChange={e => setCustomH(e.target.value)} className="w-16 rounded-xl border border-brand-200 px-2 py-2 text-sm text-center" />
+          <span className="text-xs text-slate-400">mm</span>
           <button
             onClick={() => { const w=Number(customW),h=Number(customH); if(w>0&&h>0) onChange({w,h,label:`${w}×${h}mm`}); }}
-            className="rounded-xl bg-brand-600 text-white px-3 py-1.5 text-xs font-semibold"
+            className="ml-auto rounded-xl bg-brand-600 text-white px-4 py-2 text-xs font-semibold"
           >Apply</button>
         </div>
       )}
@@ -279,71 +349,70 @@ function SizePicker({ size, onChange }: { size: LabelSize; onChange: (s: LabelSi
 
 function CountControl({ count, setCount }: { count: number; setCount: (n: number) => void }) {
   return (
-    <div className="flex items-center gap-3 bg-slate-50 rounded-2xl px-4 py-3">
-      <span className="text-sm font-semibold text-slate-700 shrink-0">Labels:</span>
-      <button onClick={() => setCount(Math.max(1, count - 1))} className="w-10 h-10 rounded-xl bg-white border-2 border-brand-200 text-brand-700 text-xl font-bold flex items-center justify-center hover:bg-brand-50 touch-manipulation">−</button>
-      <input type="number" value={count} min={1} onChange={e => setCount(Math.max(1, Number(e.target.value)))} className="flex-1 text-center text-xl font-black rounded-xl border-2 border-brand-200 py-2 focus:border-brand-500 focus:outline-none" />
-      <button onClick={() => setCount(count + 1)} className="w-10 h-10 rounded-xl bg-white border-2 border-brand-200 text-brand-700 text-xl font-bold flex items-center justify-center hover:bg-brand-50 touch-manipulation">+</button>
+    <div className="flex items-center gap-3">
+      <span className="text-sm font-semibold text-slate-700 shrink-0">Copies</span>
+      <button onClick={() => setCount(Math.max(1, count - 1))} className="w-11 h-11 rounded-xl bg-white border-2 border-brand-200 text-brand-700 text-xl font-bold flex items-center justify-center active:bg-brand-50 touch-manipulation">−</button>
+      <input type="number" inputMode="numeric" value={count} min={1} onChange={e => setCount(Math.max(1, Number(e.target.value)))} className="flex-1 min-w-0 text-center text-xl font-black rounded-xl border-2 border-brand-200 py-2 focus:border-brand-500 focus:outline-none" />
+      <button onClick={() => setCount(count + 1)} className="w-11 h-11 rounded-xl bg-white border-2 border-brand-200 text-brand-700 text-xl font-bold flex items-center justify-center active:bg-brand-50 touch-manipulation">+</button>
     </div>
   );
 }
 
-function TextInput({ label, value, onChange, placeholder, type = "text" }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
-}) {
+function Preview({ src, size }: { src: string; size: LabelSize }) {
   return (
-    <div>
-      <p className="text-xs font-semibold text-brand-700 mb-1">{label}</p>
-      <input
-        type={type} autoComplete="off" placeholder={placeholder}
-        value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
-      />
+    <div className="w-full flex justify-center">
+      <div className="w-full" style={{ maxWidth: 440 }}>
+        {src ? (
+          <img src={src} alt="label preview"
+            className="w-full h-auto rounded-xl border border-slate-200 shadow-sm"
+            style={{ aspectRatio: `${size.w} / ${size.h}` }} />
+        ) : (
+          <div className="w-full rounded-xl border-2 border-dashed border-brand-200 flex items-center justify-center text-sm text-slate-400 px-4 text-center"
+            style={{ aspectRatio: `${size.w} / ${size.h}` }}>
+            Fill in the details to see your label
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// ── PRICE LABEL CREATOR ───────────────────────────────────────────────────────
-// Label built from buy price + sell price → generates ANU/MP item code + QR.
-export function PriceLabelCreator() {
-  const [name, setName]         = useState("");
+// ── LABEL CREATOR ─────────────────────────────────────────────────────────────
+// variant "code"  → bottom line is a manually-entered item bill code
+// variant "price" → bottom line is the selling price
+export function LabelCreator({ variant }: { variant: "code" | "price" }) {
+  const [name, setName]       = useState("");
+  const [code, setCode]       = useState("");
+  const [price, setPrice]     = useState("");
+  const [size, setSize]       = useState<LabelSize>(DEFAULT_SIZE);
+  const [count, setCount]     = useState(1);
+  const [src, setSrc]         = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  // "Generate code from prices" (optional helper)
+  const [showGen, setShowGen] = useState(false);
   const [buyPrice, setBuyPrice] = useState("");
-  const [sellPrice, setSellPrice] = useState("");
+  const [sellForCode, setSellForCode] = useState("");
   const [discount, setDiscount] = useState("");
-  const [labelSize, setLabelSize] = useState<LabelSize>(DEFAULT_SIZE);
-  const [count, setCount]       = useState(1);
-  const [layout, setLayout]     = useState<LabelLayout>(() => defaultLayout(DEFAULT_SIZE));
-  const [qr, setQr]             = useState("");
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"qr"|"shop"|"name"|"code">("qr");
 
-  const buy  = Number(buyPrice);
-  const sell = Number(sellPrice);
-  const disc = Number(discount) || 0;
-  const ready = Boolean(name.trim()) && buy > 0 && sell > 0;
+  const bottom = variant === "code"
+    ? code.trim()
+    : (Number(price) > 0 ? inr(Number(price)) : "");
+  const bottomCaption = variant === "code" ? "Item Bill Code" : "Price";
+  const ready = Boolean(name.trim()) && Boolean(bottom);
 
-  const code = useMemo(() => {
-    if (buy <= 0 || sell <= 0) return "";
-    return generateItemCode(buy, sell, disc);
-  }, [buy, sell, disc]);
+  const payload = useMemo(() => ({ name: name.trim() || "Item Name", bottom: bottom || "—", bottomCaption }), [name, bottom, bottomCaption]);
 
-  const product: Product = useMemo(() => ({
-    id: "price", code, name: name.trim() || "Item", sellingPrice: sell || 0, quantity: count,
-  }), [code, name, sell, count]);
-
+  // Live preview
   useEffect(() => {
-    if (!code) { setQr(""); return; }
-    let cancelled = false;
-    QRCode.toDataURL(code, { width: 200, margin: 0, errorCorrectionLevel: "L", color: { dark: "#000", light: "#fff" } })
-      .then((url) => { if (!cancelled) setQr(url); });
-    return () => { cancelled = true; };
-  }, [code]);
+    if (!ready) { setSrc(""); return; }
+    setSrc(renderDesignedLabel(payload, size).toDataURL("image/png"));
+  }, [payload, size, ready]);
 
-  const patchField = (field: keyof Omit<LabelLayout,"qr">, patch: Partial<FieldCfg>) =>
-    setLayout(prev => ({ ...prev, [field]: { ...prev[field], ...patch } }));
-  const patchQr = (patch: Partial<QrCfg>) =>
-    setLayout(prev => ({ ...prev, qr: { ...prev.qr, ...patch } }));
-  const changeSize = (s: LabelSize) => { setLabelSize(s); setLayout(defaultLayout(s)); };
+  const generateCode = () => {
+    const b = Number(buyPrice), s = Number(sellForCode);
+    if (b > 0 && s > 0) setCode(generateItemCode(b, s, Number(discount) || 0));
+  };
 
   const downloadPDF = async () => {
     if (!ready) return;
@@ -351,263 +420,59 @@ export function PriceLabelCreator() {
     try {
       const pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }> = [];
       for (let i = 0; i < count; i++) {
-        const canvas = await renderLabelCanvas(product, qr, labelSize, layout);
+        const canvas = renderDesignedLabel(payload, size);
         pages.push({ canvas, jpeg: canvasToJpeg(canvas) });
       }
-      downloadBlob(buildPdf(pages, labelSize), `${safeName(product.name)}-labels.pdf`);
-    } finally { setPdfLoading(false); }
-  };
-
-  const TABS = [
-    { key: "qr"   as const, label: "QR Code" },
-    { key: "shop" as const, label: "Shop Name" },
-    { key: "name" as const, label: "Item Name" },
-    { key: "code" as const, label: "Item Code" },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <TextInput label="Item Name *" value={name} onChange={setName} placeholder="e.g. SILVER PATTU" />
-        <TextInput label="Max Discount % (optional)" value={discount} onChange={setDiscount} placeholder="0" type="number" />
-        <TextInput label="Purchase Price (₹) *" value={buyPrice} onChange={setBuyPrice} placeholder="0" type="number" />
-        <TextInput label="Sell Price (₹) *" value={sellPrice} onChange={setSellPrice} placeholder="0" type="number" />
-      </div>
-
-      {code && (
-        <div className="text-center text-sm font-mono font-bold text-brand-700 bg-brand-50 rounded-xl py-2">
-          {code}
-        </div>
-      )}
-
-      {/* Live preview */}
-      <div className="flex justify-center bg-slate-50 rounded-2xl p-4 border border-slate-200">
-        {ready && qr ? (
-          <CanvasPreview product={product} qr={qr} size={labelSize} layout={layout} />
-        ) : (
-          <div className="py-10 text-center text-sm text-slate-400">Enter name, purchase price and sell price to see the label</div>
-        )}
-      </div>
-
-      <SizePicker size={labelSize} onChange={changeSize} />
-      <CountControl count={count} setCount={setCount} />
-
-      <Button className="w-full py-4 text-lg font-bold rounded-2xl" onClick={downloadPDF} disabled={pdfLoading || !ready}>
-        <Download className="mr-2 h-5 w-5" />
-        {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
-      </Button>
-
-      {/* Layout editor */}
-      <div className="rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="flex border-b border-slate-200 bg-slate-50">
-          {TABS.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 py-2.5 text-xs font-semibold transition ${
-                activeTab === tab.key ? "bg-white text-brand-700 border-b-2 border-brand-600" : "text-slate-500 hover:text-slate-700"
-              }`}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <div className="p-4 space-y-3">
-          {activeTab === "qr" && (
-            <>
-              <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Show QR Code</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.qr.visible} onChange={e => patchQr({ visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
-              {layout.qr.visible && <>
-                <SliderControl label="X position" value={layout.qr.x} min={0} max={labelSize.w} onChange={v => patchQr({ x: v })} />
-                <SliderControl label="Y position" value={layout.qr.y} min={0} max={labelSize.h} onChange={v => patchQr({ y: v })} />
-                <SliderControl label="Size" value={layout.qr.size} min={5} max={Math.min(labelSize.w, labelSize.h)} onChange={v => patchQr({ size: v })} />
-              </>}
-            </>
-          )}
-          {activeTab === "shop" && (
-            <>
-              <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Shop Name</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.shopName.visible} onChange={e => patchField("shopName", { visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
-              {layout.shopName.visible && <>
-                <SliderControl label="X position" value={layout.shopName.x} min={0} max={labelSize.w} onChange={v => patchField("shopName", { x: v })} />
-                <SliderControl label="Y position" value={layout.shopName.y} min={0} max={labelSize.h} onChange={v => patchField("shopName", { y: v })} />
-                <SliderControl label="Font size" value={layout.shopName.fontSize} min={1} max={20} onChange={v => patchField("shopName", { fontSize: v })} />
-                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.shopName.bold} onChange={e => patchField("shopName", { bold: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-600">Bold</span></label>
-              </>}
-            </>
-          )}
-          {activeTab === "name" && (
-            <>
-              <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Item Name</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemName.visible} onChange={e => patchField("itemName", { visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
-              {layout.itemName.visible && <>
-                <SliderControl label="X position" value={layout.itemName.x} min={0} max={labelSize.w} onChange={v => patchField("itemName", { x: v })} />
-                <SliderControl label="Y position" value={layout.itemName.y} min={0} max={labelSize.h} onChange={v => patchField("itemName", { y: v })} />
-                <SliderControl label="Font size" value={layout.itemName.fontSize} min={1} max={20} onChange={v => patchField("itemName", { fontSize: v })} />
-                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemName.bold} onChange={e => patchField("itemName", { bold: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-600">Bold</span></label>
-              </>}
-            </>
-          )}
-          {activeTab === "code" && (
-            <>
-              <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Item Code</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemCode.visible} onChange={e => patchField("itemCode", { visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
-              {layout.itemCode.visible && <>
-                <SliderControl label="X position" value={layout.itemCode.x} min={0} max={labelSize.w} onChange={v => patchField("itemCode", { x: v })} />
-                <SliderControl label="Y position" value={layout.itemCode.y} min={0} max={labelSize.h} onChange={v => patchField("itemCode", { y: v })} />
-                <SliderControl label="Font size" value={layout.itemCode.fontSize} min={1} max={20} onChange={v => patchField("itemCode", { fontSize: v })} />
-                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemCode.bold} onChange={e => patchField("itemCode", { bold: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-600">Bold</span></label>
-              </>}
-            </>
-          )}
-          <button onClick={() => setLayout(defaultLayout(labelSize))} className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-slate-400 hover:text-brand-600 border border-slate-200 rounded-xl transition mt-1">
-            <RotateCcw className="h-3 w-3" /> Reset to default layout
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── CUSTOM LABEL CREATOR ──────────────────────────────────────────────────────
-// Label shows: QR | Anu Fashions / saree name / ₹price (no item code).
-async function renderCustomCanvas(
-  name: string,
-  sellPrice: number,
-  size: LabelSize,
-): Promise<HTMLCanvasElement> {
-  const DPI = 300;
-  const MM  = DPI / 25.4;
-  const PT  = DPI / 72;
-  const W   = Math.round(size.w * MM);
-  const H   = Math.round(size.h * MM);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, W, H);
-  ctx.textBaseline = "top";
-  ctx.fillStyle = "#000";
-
-  const pad = 2.5 * MM;
-
-  const qrData = `${name} | ${inr(sellPrice)}`;
-  const qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 1, color: { dark: "#000", light: "#fff" } });
-  const qrSide = Math.round((H - 2 * pad) * 0.95);
-  const qrImg = new Image();
-  qrImg.src = qrDataUrl;
-  await new Promise<void>((res) => { qrImg.onload = () => res(); });
-  ctx.drawImage(qrImg, pad, pad + (H - 2 * pad - qrSide) / 2, qrSide, qrSide);
-
-  const textX   = pad + qrSide + 2.5 * MM;
-  const textMaxW = W - textX - pad;
-  const sc = size.h / 30;
-
-  const wrap = (text: string, font: string, maxW: number): string[] => {
-    ctx.font = font;
-    if (ctx.measureText(text).width <= maxW) return [text];
-    const words = text.split(/\s+/);
-    const lines: string[] = []; let cur = "";
-    for (const w of words) {
-      const t = cur ? `${cur} ${w}` : w;
-      if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; }
-      else { cur = t; }
-    }
-    if (cur) lines.push(cur);
-    return lines;
-  };
-
-  const shopPx  = Math.round(7   * sc * PT);
-  const namePx  = Math.round(9   * sc * PT);
-  const pricePx = Math.round(14  * sc * PT);
-  const lineH   = Math.round(namePx * 1.3);
-
-  let y = pad;
-
-  ctx.font = `${shopPx}px Arial`;
-  ctx.fillText("Anu Fashions", textX, y);
-  y += Math.round(shopPx * 1.4);
-
-  ctx.font = `bold ${namePx}px Arial`;
-  for (const line of wrap(name, `bold ${namePx}px Arial`, textMaxW)) {
-    ctx.fillText(line, textX, y);
-    y += lineH;
-  }
-  y += Math.round(2 * sc * MM);
-
-  ctx.font = `bold ${pricePx}px Arial`;
-  ctx.fillText(inr(sellPrice), textX, y);
-
-  return canvas;
-}
-
-export function CustomLabelCreator() {
-  const [name, setName]             = useState("");
-  const [sellPrice, setSellPrice]   = useState("");
-  const [count, setCount]           = useState(1);
-  const [labelSize, setLabelSize]   = useState<LabelSize>(DEFAULT_SIZE);
-  const [previewSrc, setPreviewSrc] = useState("");
-  const [pdfLoading, setPdfLoading] = useState(false);
-
-  const n = name.trim();
-  const p = Number(sellPrice);
-  const ready = Boolean(n) && p > 0;
-
-  useEffect(() => {
-    if (!ready) { setPreviewSrc(""); return; }
-    let cancelled = false;
-    renderCustomCanvas(n, p, labelSize).then((c) => {
-      if (!cancelled) setPreviewSrc(c.toDataURL("image/png"));
-    });
-    return () => { cancelled = true; };
-  }, [n, p, ready, labelSize]);
-
-  const downloadPDF = async () => {
-    if (!ready) return;
-    setPdfLoading(true);
-    try {
-      const pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }> = [];
-      for (let i = 0; i < count; i++) {
-        const canvas = await renderCustomCanvas(n, p, labelSize);
-        pages.push({ canvas, jpeg: canvasToJpeg(canvas) });
-      }
-      downloadBlob(buildPdf(pages, labelSize), `custom-label-${safeName(n)}.pdf`);
+      downloadBlob(buildPdf(pages, size), `${safeName(name)}-labels.pdf`);
     } finally { setPdfLoading(false); }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <TextInput label="Saree / Item Name *" value={name} onChange={setName} placeholder="e.g. SILVER PATTU" />
-        <TextInput label="Selling Price (₹) *" value={sellPrice} onChange={setSellPrice} placeholder="0" type="number" />
-      </div>
+    <div className="space-y-5">
+      <Preview src={src} size={size} />
 
-      <div className="flex justify-center bg-slate-50 rounded-2xl p-4 border border-slate-200">
-        {previewSrc ? (
-          <img
-            src={previewSrc}
-            style={{
-              width: Math.min(labelSize.w * 3.5, 360),
-              height: Math.round(Math.min(labelSize.w * 3.5, 360) * (labelSize.h / labelSize.w)),
-              borderRadius: 6, border: "1px solid #ddd", display: "block"
-            }}
-            alt="label preview"
-          />
+      <div className="space-y-3">
+        <Field label="Item Name" value={name} onChange={setName} placeholder="e.g. SILVER PATTU" />
+
+        {variant === "code" ? (
+          <>
+            <Field label="Item Bill Code" value={code} onChange={setCode} placeholder="e.g. ANU52/403-MP64/903" />
+            <div className="rounded-xl border border-brand-100 bg-brand-50/60 overflow-hidden">
+              <button onClick={() => setShowGen(v => !v)} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-brand-700">
+                <Sparkles className="h-4 w-4" />
+                Generate code from prices
+                <ChevronDown className={`ml-auto h-4 w-4 transition ${showGen ? "rotate-180" : ""}`} />
+              </button>
+              {showGen && (
+                <div className="px-3 pb-3 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label="Purchase ₹" value={buyPrice} onChange={setBuyPrice} placeholder="0" type="number" />
+                    <Field label="Sell ₹" value={sellForCode} onChange={setSellForCode} placeholder="0" type="number" />
+                  </div>
+                  <Field label="Max Discount %" value={discount} onChange={setDiscount} placeholder="0" type="number" />
+                  <Button variant="secondary" className="w-full py-2.5" onClick={generateCode} disabled={!(Number(buyPrice) > 0 && Number(sellForCode) > 0)}>
+                    Generate & fill code
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
         ) : (
-          <div className="py-10 text-center text-sm text-slate-400">Enter a name and price to see the preview</div>
+          <Field label="Selling Price (₹)" value={price} onChange={setPrice} placeholder="0" type="number" />
         )}
       </div>
 
-      <SizePicker size={labelSize} onChange={setLabelSize} />
+      <div className="space-y-3">
+        <p className="text-xs font-bold text-brand-700 uppercase tracking-wide">Label size</p>
+        <SizePicker size={size} onChange={setSize} />
+      </div>
+
       <CountControl count={count} setCount={setCount} />
 
-      <Button className="w-full py-4 text-lg font-bold rounded-2xl" onClick={downloadPDF} disabled={pdfLoading || !ready}>
+      <Button className="w-full py-4 text-base font-bold rounded-2xl" onClick={downloadPDF} disabled={pdfLoading || !ready}>
         <Download className="mr-2 h-5 w-5" />
-        {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
+        {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""}`}
       </Button>
-
-      <div className="bg-brand-50 rounded-xl p-3 space-y-1 text-xs text-slate-600">
-        <p className="font-semibold text-brand-800 text-sm">What's on this label:</p>
-        <p>✓ QR code (encodes name + price)</p>
-        <p>✓ Anu Fashions</p>
-        <p>✓ Saree name</p>
-        <p>✓ Selling price — bold</p>
-        <p className="text-slate-400">✗ No item code</p>
-      </div>
     </div>
   );
 }
