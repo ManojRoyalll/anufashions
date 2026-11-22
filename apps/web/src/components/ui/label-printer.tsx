@@ -67,6 +67,10 @@ function drawFloralBorder(ctx: CanvasRenderingContext2D, W: number, H: number, u
   const m = u * 3;            // outer margin
   const r = u * 3;            // corner radius
 
+  // Keep the decoration soft so it never competes with the text
+  ctx.save();
+  ctx.globalAlpha = 0.38;
+
   const roundRect = (x: number, y: number, w: number, h: number, rad: number) => {
     ctx.beginPath();
     ctx.moveTo(x + rad, y);
@@ -108,7 +112,7 @@ function drawFloralBorder(ctx: CanvasRenderingContext2D, W: number, H: number, u
     ctx.restore();
   };
 
-  const s = u * 1.4;
+  const s = u * 1.05;
   const corners: [number, number, number][] = [
     [m + u * 1.2, m + u * 1.2, 0],
     [W - m - u * 1.2, m + u * 1.2, Math.PI / 2],
@@ -120,6 +124,7 @@ function drawFloralBorder(ctx: CanvasRenderingContext2D, W: number, H: number, u
     leafShape(cx + Math.cos(rot - 0.2) * s * 1.8, cy + Math.sin(rot - 0.2) * s * 1.8, s * 0.8, rot - 0.2);
     flower(cx, cy, s);
   }
+  ctx.restore();
 }
 
 function safeName(name: string) {
