@@ -1,14 +1,24 @@
 import { useState } from "react";
-import { Tag, RotateCw } from "lucide-react";
+import { Tag, RotateCw, LogOut } from "lucide-react";
 import { LabelCreator, LabelHistory } from "@/components/ui/label-printer";
 import { type HistoryEntry } from "@/lib/history";
+import { useAuth, signOut } from "@/lib/auth";
+import Login from "@/Login";
 
 type Mode = "code" | "price" | "history";
 
 export default function App() {
+  const { loading, session } = useAuth();
   const [mode, setMode] = useState<Mode>("code");
   const [reuse, setReuse] = useState<HistoryEntry | null>(null);
   const [reuseKey, setReuseKey] = useState(0);
+
+  if (loading) {
+    return <div className="min-h-dvh bg-brand-50/40 flex items-center justify-center text-sm text-slate-400">Loading…</div>;
+  }
+  if (!session) {
+    return <Login />;
+  }
 
   const tabs: { key: Mode; label: string }[] = [
     { key: "code",    label: "Bill Code" },
@@ -41,6 +51,13 @@ export default function App() {
             className="ml-auto rounded-xl bg-white/15 p-2.5 active:bg-white/25 touch-manipulation"
           >
             <RotateCw className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => signOut()}
+            aria-label="Sign out"
+            className="rounded-xl bg-white/15 p-2.5 active:bg-white/25 touch-manipulation"
+          >
+            <LogOut className="h-5 w-5" />
           </button>
         </div>
       </header>
