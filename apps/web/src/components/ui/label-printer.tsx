@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, Sparkles, ChevronDown } from "lucide-react";
+import { Download, Sparkles, ChevronDown, Trash2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inr, generateItemCode } from "@/lib/utils";
 
@@ -382,15 +382,62 @@ function Preview({ src, size }: { src: string; size: LabelSize }) {
   );
 }
 
+// ── LABEL HISTORY (localStorage) ──────────────────────────────────────────────
+export type LabelVariant = "code" | "price";
+export type HistoryEntry = {
+  id: string; ts: number; variant: LabelVariant;
+  name: string; code: string; price: string;
+  size: LabelSize; count: number;
+};
+
+const HISTORY_KEY = "label-history";
+
+export function getHistory(): HistoryEntry[] {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveHistory(list: HistoryEntry[]) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 100))); } catch { /* ignore */ }
+}
+function addToHistory(e: Omit<HistoryEntry, "id" | "ts">): HistoryEntry[] {
+  const entry: HistoryEntry = { ...e, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ts: Date.now() };
+  const list = [entry, ...getHistory()];
+  saveHistory(list);
+  return list;
+}
+function removeFromHistory(id: string): HistoryEntry[] {
+  const list = getHistory().filter(x => x.id !== id);
+  saveHistory(list);
+  return list;
+}
+function clearHistory(): HistoryEntry[] { saveHistory([]); return []; }
+
+function entryPayload(e: { variant: LabelVariant; name: string; code: string; price: string }) {
+  const bottom = e.variant === "code"
+    ? e.code.trim()
+    : (Number(e.price) > 0 ? inr(Number(e.price)) : "");
+  const bottomCaption = e.variant === "code" ? "Item Bill Code" : "Price";
+  return { name: e.name.trim() || "Item Name", bottom: bottom || "—", bottomCaption };
+}
+
+function downloadEntry(e: HistoryEntry) {
+  const pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }> = [];
+  for (let i = 0; i < e.count; i++) {
+    const canvas = renderDesignedLabel(entryPayload(e), e.size);
+    pages.push({ canvas, jpeg: canvasToJpeg(canvas) });
+  }
+  downloadBlob(buildPdf(pages, e.size), `${safeName(e.name)}-labels.pdf`);
+}
+
 // ── LABEL CREATOR ─────────────────────────────────────────────────────────────
 // variant "code"  → bottom line is a manually-entered item bill code
 // variant "price" → bottom line is the selling price
-export function LabelCreator({ variant }: { variant: "code" | "price" }) {
-  const [name, setName]       = useState("");
-  const [code, setCode]       = useState("");
-  const [price, setPrice]     = useState("");
-  const [size, setSize]       = useState<LabelSize>(DEFAULT_SIZE);
-  const [count, setCount]     = useState(1);
+export function LabelCreator({ variant, initial }: { variant: LabelVariant; initial?: HistoryEntry }) {
+  const [name, setName]       = useState(initial?.name ?? "");
+  const [code, setCode]       = useState(initial?.variant === "code" ? initial.code : "");
+  const [price, setPrice]     = useState(initial?.variant === "price" ? initial.price : "");
+  const [size, setSize]       = useState<LabelSize>(initial?.size ?? DEFAULT_SIZE);
+  const [count, setCount]     = useState(initial?.count ?? 1);
   const [src, setSrc]         = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
 
@@ -429,6 +476,12 @@ export function LabelCreator({ variant }: { variant: "code" | "price" }) {
         pages.push({ canvas, jpeg: canvasToJpeg(canvas) });
       }
       downloadBlob(buildPdf(pages, size), `${safeName(name)}-labels.pdf`);
+      addToHistory({
+        variant, name: name.trim(),
+        code: variant === "code" ? code.trim() : "",
+        price: variant === "price" ? price : "",
+        size, count,
+      });
     } finally { setPdfLoading(false); }
   };
 
@@ -478,6 +531,77 @@ export function LabelCreator({ variant }: { variant: "code" | "price" }) {
         <Download className="mr-2 h-5 w-5" />
         {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""}`}
       </Button>
+    </div>
+  );
+}
+
+// ── LABEL HISTORY ─────────────────────────────────────────────────────────────
+function HistoryCard({ entry, onReuse, onDelete }: {
+  entry: HistoryEntry; onReuse: (e: HistoryEntry) => void; onDelete: () => void;
+}) {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    setSrc(renderDesignedLabel(entryPayload(entry), entry.size).toDataURL("image/png"));
+  }, [entry]);
+
+  const value = entry.variant === "code" ? entry.code : inr(Number(entry.price));
+  const when = new Date(entry.ts).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className="rounded-2xl border border-brand-100 bg-white p-3 space-y-3 shadow-sm">
+      {src && (
+        <img src={src} alt="" className="w-full h-auto rounded-xl border border-slate-100"
+          style={{ aspectRatio: `${entry.size.w} / ${entry.size.h}` }} />
+      )}
+      <div className="space-y-0.5">
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${entry.variant === "code" ? "bg-brand-100 text-brand-700" : "bg-terra-100 text-terra-700"}`}>
+            {entry.variant === "code" ? "BILL CODE" : "PRICE"}
+          </span>
+          <p className="font-bold text-slate-800 truncate">{entry.name || "Untitled"}</p>
+        </div>
+        <p className="text-sm text-brand-800 font-semibold truncate">{value}</p>
+        <p className="text-xs text-slate-400">{entry.size.w}×{entry.size.h}mm · {entry.count} cop{entry.count === 1 ? "y" : "ies"} · {when}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Button className="py-2.5" onClick={() => downloadEntry(entry)}>
+          <Download className="mr-1.5 h-4 w-4" /> Download
+        </Button>
+        <Button variant="secondary" className="py-2.5" onClick={() => onReuse(entry)}>
+          Reuse
+        </Button>
+      </div>
+      <button onClick={onDelete} className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-slate-400 hover:text-red-600 border border-slate-200 rounded-xl transition">
+        <Trash2 className="h-3.5 w-3.5" /> Delete
+      </button>
+    </div>
+  );
+}
+
+export function LabelHistory({ onReuse }: { onReuse: (e: HistoryEntry) => void }) {
+  const [list, setList] = useState<HistoryEntry[]>(() => getHistory());
+
+  if (list.length === 0) {
+    return (
+      <div className="rounded-2xl border-2 border-dashed border-brand-200 py-16 px-6 text-center">
+        <Clock className="h-10 w-10 mx-auto text-brand-300" />
+        <p className="mt-3 font-semibold text-slate-600">No labels yet</p>
+        <p className="text-sm text-slate-400">Labels you download are saved here so you can reprint them anytime.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-slate-600">{list.length} saved label{list.length !== 1 ? "s" : ""}</p>
+        <button onClick={() => setList(clearHistory())} className="text-xs font-semibold text-slate-400 hover:text-red-600">
+          Clear all
+        </button>
+      </div>
+      {list.map((e) => (
+        <HistoryCard key={e.id} entry={e} onReuse={onReuse} onDelete={() => setList(removeFromHistory(e.id))} />
+      ))}
     </div>
   );
 }
