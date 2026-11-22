@@ -13,26 +13,6 @@ export function inr(value: number) {
   }).format(value || 0);
 }
 
-// Round a price UP to the nearest 50 (gives clean 50s and 100s, never 5s or odd 10s)
-export function roundUpTo50(price: number): number {
-  return Math.ceil(price / 50) * 50;
-}
-
-// ── Sell price multiplier setting ─────────────────────────────────────────────
-// Stored in localStorage so it persists across sessions.
-// Default is 2 (sell = 2× buy). User can change in Settings → Pricing.
-const MULTIPLIER_KEY = "sell-price-multiplier";
-
-export function getSellMultiplier(): number {
-  try {
-    const v = Number(localStorage.getItem(MULTIPLIER_KEY));
-    return v > 0 ? v : 2;
-  } catch { return 2; }
-}
-
-export function setSellMultiplier(v: number) {
-  try { localStorage.setItem(MULTIPLIER_KEY, String(v)); } catch { /* ignore */ }
-}
 // Pattern (user's original style):
 //   ANU5 + first digit of buy + / + rest of buy digits + pad digit
 //   MP6  + first digit of sell + / + rest of sell digits + pad digit

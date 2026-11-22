@@ -1,63 +1,53 @@
-import { Navigate, Route, Routes } from "react-router-dom";
-import AppShell from "@/components/layout/app-shell";
-import HomePage from "@/pages/home";
-import SalesPage from "@/pages/sales";
-import LedgerPage from "@/pages/ledger";
-import SalesHistoryPage from "@/pages/sales-history";
-import BuyPage from "@/pages/buy";
-import ProductsPage from "@/pages/products";
-import VendorsPage from "@/pages/vendors";
-import OverviewPage from "@/pages/overview";
-import SettingsPage from "@/pages/settings";
-import LoginPage from "@/pages/login";
-import DashboardPage from "@/pages/dashboard";
-import StockPage from "@/pages/stock";
-import InvoicesPage from "@/pages/invoices";
-import SuppliersPage from "@/pages/suppliers";
-import CategoriesPage from "@/pages/categories";
-import PriceRangesPage from "@/pages/price-ranges";
-import CustomersPage from "@/pages/customers";
-import PurchasesPage from "@/pages/purchases";
-import AddStockPage from "@/pages/add-stock";
-import ExpensesPage from "@/pages/expenses";
-import ReportsPage from "@/pages/reports";
-import { useAuthStore } from "@/store/auth";
+import { useState } from "react";
+import { Tag } from "lucide-react";
+import { PriceLabelCreator, CustomLabelCreator } from "@/components/ui/label-printer";
 
-function Protected({ children }: { children: React.ReactNode }) {
-  const token = useAuthStore((s) => s.token);
-  if (!token) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-}
+type Mode = "price" | "custom";
 
 export default function App() {
+  const [mode, setMode] = useState<Mode>("price");
+
+  const tabs: { key: Mode; label: string; sub: string }[] = [
+    { key: "price",  label: "Price Label",  sub: "Purchase + Sell price → item code" },
+    { key: "custom", label: "Custom Label", sub: "Name + Sell price only" },
+  ];
+
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<Protected><AppShell /></Protected>}>
-        <Route path="/home" element={<HomePage />} />
-        {/* ── CORE 5 SECTIONS ── */}
-        <Route path="/stock" element={<ProductsPage />} />
-        <Route path="/" element={<SalesPage />} />
-        <Route path="/sales-history" element={<SalesHistoryPage />} />
-        <Route path="/ledger" element={<LedgerPage />} />
-        <Route path="/vendors" element={<VendorsPage />} />
-        {/* ── SECONDARY ── */}
-        <Route path="/overview" element={<OverviewPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        {/* Legacy routes kept working */}
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/products" element={<ProductsPage />} />
-        <Route path="/stock-tabs" element={<StockPage />} />
-        <Route path="/invoices" element={<InvoicesPage />} />
-        <Route path="/suppliers" element={<SuppliersPage />} />
-        <Route path="/categories" element={<CategoriesPage />} />
-        <Route path="/price-ranges" element={<PriceRangesPage />} />
-        <Route path="/customers" element={<CustomersPage />} />
-        <Route path="/purchases" element={<PurchasesPage />} />
-        <Route path="/add-stock" element={<AddStockPage />} />
-        <Route path="/expenses" element={<ExpensesPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-      </Route>
-    </Routes>
+    <div className="min-h-screen bg-brand-50/40">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-700 text-white">
+        <div className="mx-auto max-w-3xl px-4 py-5 flex items-center gap-3">
+          <div className="rounded-2xl bg-white/15 p-2.5">
+            <Tag className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold leading-tight">Anu Fashions — Label Creation</h1>
+            <p className="text-sm text-white/80">లేబుల్ తయారీ</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-3xl px-4 py-6">
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setMode(tab.key)}
+              className={`rounded-2xl border-2 p-4 text-left transition ${
+                mode === tab.key
+                  ? "bg-brand-600 text-white border-brand-600"
+                  : "bg-white text-brand-800 border-brand-200 hover:border-brand-400"
+              }`}
+            >
+              <p className="font-bold">{tab.label}</p>
+              <p className={`text-xs mt-0.5 ${mode === tab.key ? "text-white/80" : "text-slate-500"}`}>{tab.sub}</p>
+            </button>
+          ))}
+        </div>
+
+        <div className="rounded-2xl bg-white border border-brand-100 shadow-sm p-4 sm:p-6">
+          {mode === "price" ? <PriceLabelCreator /> : <CustomLabelCreator />}
+        </div>
+      </main>
+    </div>
   );
 }

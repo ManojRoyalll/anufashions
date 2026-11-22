@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import { Settings2, Download, FileText, LayoutTemplate, RotateCcw, Tag } from "lucide-react";
+import { Download, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TwoPane } from "@/components/ui/two-pane";
-import { Modal } from "@/components/ui/modal";import { inr } from "@/lib/utils";
+import { inr, generateItemCode } from "@/lib/utils";
 
 type Product = {
   id: string; code: string; name: string;
@@ -12,11 +11,7 @@ type Product = {
 
 type LabelSize = { w: number; h: number; label: string };
 
-const LABEL_PRESETS: LabelSize[] = [
-  { label: "Josh Standard (100×50mm)", w: 100, h: 50 },
-];
-
-const DEFAULT_SIZE = LABEL_PRESETS[0]; // 100×50mm (Josh Standard)
+const DEFAULT_SIZE: LabelSize = { label: "Josh Standard (100×50mm)", w: 100, h: 50 };
 
 // ── LAYOUT TYPE ───────────────────────────────────────────────────────────────
 type FieldCfg = { visible: boolean; x: number; y: number; fontSize: number; bold: boolean };
@@ -29,11 +24,6 @@ type LabelLayout = {
   itemCode: FieldCfg;
 };
 
-// Layout measured from reference screenshot (100×50mm label):
-// - "Anu Fashions": top-left, spans full width, above QR
-// - QR code: left side, below shop name
-// - Item name: right of QR, same top as QR
-// - Item code (bold, large): right of QR, below item name
 function defaultLayout(size: LabelSize): LabelLayout {
   const REF_W = 100, REF_H = 50;
   const sX = size.w / REF_W;
@@ -44,25 +34,10 @@ function defaultLayout(size: LabelSize): LabelLayout {
   const f = (mm: number) => Math.round(mm * sF * 10) / 10;
   return {
     shopName: { visible: true, x: x(5.5),  y: y(4.5),  fontSize: f(5.5),  bold: false },
-    // QR: left side, below shop name
     qr:       { visible: true, x: x(5.5),  y: y(13.5), size: f(30.0) },
-    // Item name: right of QR, aligned with QR top
     itemName: { visible: true, x: x(40.0), y: y(13.0), fontSize: f(5.5),  bold: false },
-    // Item code: right of QR, below item name, bold large
     itemCode: { visible: true, x: x(41.0), y: y(24.0), fontSize: f(7.0),  bold: true  },
   };
-}
-
-function lsKey(size: LabelSize) { return `label-layout-${size.w}x${size.h}`; }
-
-// Always start from the default layout — localStorage only used when user explicitly edits
-// This ensures every label looks the same as the reference design by default
-function loadLayout(size: LabelSize): LabelLayout {
-  return defaultLayout(size);
-}
-
-function saveLayout(size: LabelSize, layout: LabelLayout) {
-  try { localStorage.setItem(lsKey(size), JSON.stringify(layout)); } catch { /* ignore */ }
 }
 
 // ── CANVAS RENDERER ───────────────────────────────────────────────────────────
@@ -90,7 +65,6 @@ async function renderLabelCanvas(
   ctx.textBaseline = "top";
   ctx.fillStyle = "#000";
 
-  // QR
   if (layout.qr.visible && qrDataUrl) {
     const qrImg = new Image();
     qrImg.src = qrDataUrl;
@@ -99,7 +73,6 @@ async function renderLabelCanvas(
     ctx.drawImage(qrImg, px(layout.qr.x), px(layout.qr.y), s, s);
   }
 
-  // Helper: wrap into lines fitting maxPx width
   const wrap = (text: string, font: string, maxPx: number): string[] => {
     ctx.font = font;
     if (ctx.measureText(text).width <= maxPx) return [text];
@@ -128,13 +101,11 @@ async function renderLabelCanvas(
     }
   };
 
-  // Special rendering for item code: split ANU and MP parts onto separate lines
   const drawCode = (cfg: FieldCfg, code: string) => {
     if (!cfg.visible) return;
     const fpx   = px(cfg.fontSize);
     const font  = `${cfg.bold ? "bold " : ""}${fpx}px Arial`;
     const lineH = Math.round(fpx * 1.45);
-    // Split on ' ' or '-' between ANU and MP sections
     const parts = code.split(/-(?=MP)/).filter(Boolean);
     let y = px(cfg.y);
     ctx.font = font;
@@ -151,24 +122,12 @@ async function renderLabelCanvas(
   return canvas;
 }
 
-// ── PDF BUILDER ───────────────────────────────────────────────────────────────
-async function generateLabelPDF(
-  items: { product: Product; count: number; qr: string }[],
-  size: LabelSize,
-  layout: LabelLayout,
-): Promise<Blob> {
+// ── GENERIC PDF BUILDER ─────────────────────────────────────────────────────
+function buildPdf(pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }>, size: LabelSize): Blob {
   const MM_TO_PT = 2.8346;
   const pageW = size.w * MM_TO_PT;
   const pageH = size.h * MM_TO_PT;
 
-  const pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }> = [];
-  for (const { product, count, qr } of items) {
-    for (let i = 0; i < count; i++) {
-      const canvas = await renderLabelCanvas(product, qr, size, layout);
-      const b64 = canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
-      pages.push({ canvas, jpeg: Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)) });
-    }
-  }
   if (pages.length === 0) return new Blob([], { type: "application/pdf" });
 
   const enc = new TextEncoder();
@@ -213,6 +172,18 @@ async function generateLabelPDF(
   return new Blob([out], { type: "application/pdf" });
 }
 
+function canvasToJpeg(canvas: HTMLCanvasElement): Uint8Array {
+  const b64 = canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url;
+  a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ── CANVAS PREVIEW (WYSIWYG) ─────────────────────────────────────────────────
 function CanvasPreview({ product, qr, size, layout }: { product: Product; qr: string; size: LabelSize; layout: LabelLayout }) {
   const [src, setSrc] = useState("");
@@ -228,7 +199,6 @@ function CanvasPreview({ product, qr, size, layout }: { product: Product; qr: st
 }
 
 // ── SLIDER CONTROL ────────────────────────────────────────────────────────────
-// Touch-friendly: slider + − value + buttons. No keyboard input needed.
 function SliderControl({
   label, value, min, max, step = 0.5, onChange,
 }: {
@@ -244,7 +214,6 @@ function SliderControl({
         <span className="text-[11px] font-semibold text-brand-700">{label}</span>
         <span className="text-[11px] font-bold text-brand-900 tabular-nums">{value.toFixed(1)} mm</span>
       </div>
-      {/* Slider */}
       <div className="relative h-6 flex items-center">
         <div className="absolute inset-x-0 h-1.5 rounded-full bg-brand-100" />
         <div className="absolute h-1.5 rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
@@ -259,7 +228,6 @@ function SliderControl({
             [&::-moz-range-thumb]:bg-brand-700 [&::-moz-range-thumb]:border-0"
         />
       </div>
-      {/* − value + row */}
       <div className="flex items-center gap-2">
         <button onClick={dec} className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100 active:bg-brand-200 touch-manipulation select-none">−</button>
         <div className="flex-1 text-center text-sm font-bold text-brand-900 bg-brand-50 rounded-xl py-2">{value.toFixed(1)}</div>
@@ -269,112 +237,124 @@ function SliderControl({
   );
 }
 
-// ── FIELD ROW ─────────────────────────────────────────────────────────────────
-function FieldRow({
-  label, cfg, onChange, showBold = false,
-  xMax, yMax,
-}: {
-  label: string;
-  cfg: FieldCfg;
-  onChange: (c: Partial<FieldCfg>) => void;
-  showBold?: boolean;
-  xMax: number; yMax: number;
+// ── SIZE PICKER (shared) ──────────────────────────────────────────────────────
+function SizePicker({ size, onChange }: { size: LabelSize; onChange: (s: LabelSize) => void }) {
+  const [showCustom, setShowCustom] = useState(false);
+  const [customW, setCustomW] = useState(String(size.w));
+  const [customH, setCustomH] = useState(String(size.h));
+  const isDefault = size.w === DEFAULT_SIZE.w && size.h === DEFAULT_SIZE.h;
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <button
+        onClick={() => { setShowCustom(false); onChange(DEFAULT_SIZE); }}
+        className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition ${
+          isDefault && !showCustom ? "bg-brand-600 text-white border-brand-600" : "bg-white text-brand-700 border-brand-200"
+        }`}
+      >
+        Josh Standard (100×50mm)
+      </button>
+      <button
+        onClick={() => setShowCustom(v => !v)}
+        className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition ${
+          showCustom ? "bg-brand-600 text-white border-brand-600" : "bg-white text-brand-700 border-brand-200"
+        }`}
+      >
+        Custom Size
+      </button>
+      {showCustom && (
+        <div className="flex items-center gap-2 w-full mt-1">
+          <span className="text-xs text-slate-500">W mm:</span>
+          <input type="number" value={customW} onChange={e => setCustomW(e.target.value)} className="w-16 rounded-xl border border-brand-200 px-2 py-1.5 text-sm text-center" />
+          <span className="text-xs text-slate-500">H mm:</span>
+          <input type="number" value={customH} onChange={e => setCustomH(e.target.value)} className="w-16 rounded-xl border border-brand-200 px-2 py-1.5 text-sm text-center" />
+          <button
+            onClick={() => { const w=Number(customW),h=Number(customH); if(w>0&&h>0) onChange({w,h,label:`${w}×${h}mm`}); }}
+            className="rounded-xl bg-brand-600 text-white px-3 py-1.5 text-xs font-semibold"
+          >Apply</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CountControl({ count, setCount }: { count: number; setCount: (n: number) => void }) {
+  return (
+    <div className="flex items-center gap-3 bg-slate-50 rounded-2xl px-4 py-3">
+      <span className="text-sm font-semibold text-slate-700 shrink-0">Labels:</span>
+      <button onClick={() => setCount(Math.max(1, count - 1))} className="w-10 h-10 rounded-xl bg-white border-2 border-brand-200 text-brand-700 text-xl font-bold flex items-center justify-center hover:bg-brand-50 touch-manipulation">−</button>
+      <input type="number" value={count} min={1} onChange={e => setCount(Math.max(1, Number(e.target.value)))} className="flex-1 text-center text-xl font-black rounded-xl border-2 border-brand-200 py-2 focus:border-brand-500 focus:outline-none" />
+      <button onClick={() => setCount(count + 1)} className="w-10 h-10 rounded-xl bg-white border-2 border-brand-200 text-brand-700 text-xl font-bold flex items-center justify-center hover:bg-brand-50 touch-manipulation">+</button>
+    </div>
+  );
+}
+
+function TextInput({ label, value, onChange, placeholder, type = "text" }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
 }) {
   return (
-    <div className="rounded-xl border border-brand-100 bg-white p-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-bold text-brand-800">{label}</span>
-        <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer select-none">
-          <input type="checkbox" checked={cfg.visible} onChange={(e) => onChange({ visible: e.target.checked })} className="w-4 h-4 accent-brand-700" />
-          Show
-        </label>
-      </div>
-      {cfg.visible && (
-        <div className="space-y-3">
-          <SliderControl label="X position" value={cfg.x} min={0} max={xMax} onChange={(v) => onChange({ x: v })} />
-          <SliderControl label="Y position" value={cfg.y} min={0} max={yMax} onChange={(v) => onChange({ y: v })} />
-          <SliderControl label="Font size" value={cfg.fontSize} min={1} max={20} onChange={(v) => onChange({ fontSize: v })} />
-          {showBold && (
-            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
-              <input type="checkbox" checked={cfg.bold} onChange={(e) => onChange({ bold: e.target.checked })} className="w-4 h-4 accent-brand-700" />
-              Bold text
-            </label>
-          )}
-        </div>
-      )}
+    <div>
+      <p className="text-xs font-semibold text-brand-700 mb-1">{label}</p>
+      <input
+        type={type} autoComplete="off" placeholder={placeholder}
+        value={value} onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
+      />
     </div>
   );
 }
 
-// ── QR ROW ────────────────────────────────────────────────────────────────────
-function QrRow({ cfg, onChange, xMax, yMax }: { cfg: QrCfg; onChange: (c: Partial<QrCfg>) => void; xMax: number; yMax: number }) {
-  return (
-    <div className="rounded-xl border border-brand-100 bg-white p-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-bold text-brand-800">QR Code</span>
-        <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer select-none">
-          <input type="checkbox" checked={cfg.visible} onChange={(e) => onChange({ visible: e.target.checked })} className="w-4 h-4 accent-brand-700" />
-          Show
-        </label>
-      </div>
-      {cfg.visible && (
-        <div className="space-y-3">
-          <SliderControl label="X position" value={cfg.x} min={0} max={xMax} onChange={(v) => onChange({ x: v })} />
-          <SliderControl label="Y position" value={cfg.y} min={0} max={yMax} onChange={(v) => onChange({ y: v })} />
-          <SliderControl label="Size" value={cfg.size} min={5} max={Math.min(xMax, yMax)} onChange={(v) => onChange({ size: v })} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── PER-ITEM LABEL PRINTER ────────────────────────────────────────────────────
-// Modal: preview on top, tabs below (QR / Shop / Name / Code)
-export function LabelPrinterItem({ product }: { product: Product }) {
-  const [open, setOpen]         = useState(false);
-  const [count, setCount]       = useState(product.quantity || 1);
+// ── PRICE LABEL CREATOR ───────────────────────────────────────────────────────
+// Label built from buy price + sell price → generates ANU/MP item code + QR.
+export function PriceLabelCreator() {
+  const [name, setName]         = useState("");
+  const [buyPrice, setBuyPrice] = useState("");
+  const [sellPrice, setSellPrice] = useState("");
+  const [discount, setDiscount] = useState("");
   const [labelSize, setLabelSize] = useState<LabelSize>(DEFAULT_SIZE);
-  const [customW, setCustomW]   = useState("");
-  const [customH, setCustomH]   = useState("");
-  const [showCustom, setShowCustom] = useState(false);
-  const [layout, setLayout]     = useState<LabelLayout>(() => loadLayout(DEFAULT_SIZE));
+  const [count, setCount]       = useState(1);
+  const [layout, setLayout]     = useState<LabelLayout>(() => defaultLayout(DEFAULT_SIZE));
   const [qr, setQr]             = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"qr"|"shop"|"name"|"code">("qr");
-  const [downloaded, setDownloaded] = useState(() => {
-    try { return localStorage.getItem(`label-downloaded-${product.id}`) === "1"; }
-    catch { return false; }
-  });
 
-  const patchField = useCallback((field: keyof Omit<LabelLayout,"qr">, patch: Partial<FieldCfg>) =>
-    setLayout(prev => ({ ...prev, [field]: { ...prev[field], ...patch } })), []);
-  const patchQr = useCallback((patch: Partial<QrCfg>) =>
-    setLayout(prev => ({ ...prev, qr: { ...prev.qr, ...patch } })), []);
-  const resetLayout = () => { const d = defaultLayout(labelSize); setLayout(d); };
+  const buy  = Number(buyPrice);
+  const sell = Number(sellPrice);
+  const disc = Number(discount) || 0;
+  const ready = Boolean(name.trim()) && buy > 0 && sell > 0;
 
-  const changeSize = useCallback((s: LabelSize) => {
-    setLabelSize(s); setLayout(loadLayout(s));
-  }, []);
+  const code = useMemo(() => {
+    if (buy <= 0 || sell <= 0) return "";
+    return generateItemCode(buy, sell, disc);
+  }, [buy, sell, disc]);
 
-  const openPane = async () => {
-    const data = displayCode(product.code);
-    const url = await QRCode.toDataURL(data, { width: 200, margin: 0, errorCorrectionLevel: "L", color: { dark: "#000", light: "#fff" } });
-    setQr(url);
-    setCount(product.quantity || 1);
-    setActiveTab("qr");
-    setOpen(true);
-  };
+  const product: Product = useMemo(() => ({
+    id: "price", code, name: name.trim() || "Item", sellingPrice: sell || 0, quantity: count,
+  }), [code, name, sell, count]);
+
+  useEffect(() => {
+    if (!code) { setQr(""); return; }
+    let cancelled = false;
+    QRCode.toDataURL(code, { width: 200, margin: 0, errorCorrectionLevel: "L", color: { dark: "#000", light: "#fff" } })
+      .then((url) => { if (!cancelled) setQr(url); });
+    return () => { cancelled = true; };
+  }, [code]);
+
+  const patchField = (field: keyof Omit<LabelLayout,"qr">, patch: Partial<FieldCfg>) =>
+    setLayout(prev => ({ ...prev, [field]: { ...prev[field], ...patch } }));
+  const patchQr = (patch: Partial<QrCfg>) =>
+    setLayout(prev => ({ ...prev, qr: { ...prev.qr, ...patch } }));
+  const changeSize = (s: LabelSize) => { setLabelSize(s); setLayout(defaultLayout(s)); };
 
   const downloadPDF = async () => {
+    if (!ready) return;
     setPdfLoading(true);
     try {
-      const blob = await generateLabelPDF([{ product, count, qr }], labelSize, layout);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url;
-      a.download = `${safeName(product.name)}-labels.pdf`; a.click();
-      URL.revokeObjectURL(url);
-      setDownloaded(true);
-      try { localStorage.setItem(`label-downloaded-${product.id}`, "1"); } catch { /**/ }
+      const pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }> = [];
+      for (let i = 0; i < count; i++) {
+        const canvas = await renderLabelCanvas(product, qr, labelSize, layout);
+        pages.push({ canvas, jpeg: canvasToJpeg(canvas) });
+      }
+      downloadBlob(buildPdf(pages, labelSize), `${safeName(product.name)}-labels.pdf`);
     } finally { setPdfLoading(false); }
   };
 
@@ -386,164 +366,104 @@ export function LabelPrinterItem({ product }: { product: Product }) {
   ];
 
   return (
-    <>
-      {/* Trigger button */}
-      <button
-        onClick={openPane}
-        title={downloaded ? "Label downloaded — click to reprint" : "Print label"}
-        className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg border transition ${
-          downloaded
-            ? "bg-green-100 text-green-700 border-green-300 hover:bg-green-200"
-            : "text-brand-600 bg-brand-50 border-brand-200 hover:bg-brand-100"
-        }`}
-      >
-        {downloaded
-          ? <><svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Label</>
-          : <><Tag className="h-3 w-3" />Label</>
-        }
-      </button>
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TextInput label="Item Name *" value={name} onChange={setName} placeholder="e.g. SILVER PATTU" />
+        <TextInput label="Max Discount % (optional)" value={discount} onChange={setDiscount} placeholder="0" type="number" />
+        <TextInput label="Purchase Price (₹) *" value={buyPrice} onChange={setBuyPrice} placeholder="0" type="number" />
+        <TextInput label="Sell Price (₹) *" value={sellPrice} onChange={setSellPrice} placeholder="0" type="number" />
+      </div>
 
-      {/* Modal: preview top, tabs bottom */}
-      <Modal open={open} onClose={() => setOpen(false)} title={`Label — ${product.name}`} size="md">
-        <div className="space-y-4">
-
-          {/* ── LIVE PREVIEW ── */}
-          <div className="flex justify-center bg-slate-50 rounded-2xl p-4 border border-slate-200">
-            {qr ? (
-              <CanvasPreview product={product} qr={qr} size={labelSize} layout={layout} />
-            ) : (
-              <div className="h-24 w-full bg-slate-100 rounded-xl animate-pulse" />
-            )}
-          </div>
-
-          {/* ── SIZE: Josh Standard + Custom only ── */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => { setShowCustom(false); changeSize(DEFAULT_SIZE); }}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition ${
-                !showCustom ? "bg-brand-600 text-white border-brand-600" : "bg-white text-brand-700 border-brand-200"
-              }`}
-            >
-              Josh Standard (100×50mm)
-            </button>
-            <button
-              onClick={() => setShowCustom(v => !v)}
-              className={`flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition ${
-                showCustom ? "bg-brand-600 text-white border-brand-600" : "bg-white text-brand-700 border-brand-200"
-              }`}
-            >
-              <Settings2 className="h-3.5 w-3.5" /> Custom
-            </button>
-            {showCustom && (
-              <div className="flex items-center gap-2 w-full mt-1">
-                <span className="text-xs text-slate-500">W mm:</span>
-                <input type="number" value={customW} onChange={e => setCustomW(e.target.value)} className="w-16 rounded-xl border border-brand-200 px-2 py-1.5 text-sm text-center normal-case" />
-                <span className="text-xs text-slate-500">H mm:</span>
-                <input type="number" value={customH} onChange={e => setCustomH(e.target.value)} className="w-16 rounded-xl border border-brand-200 px-2 py-1.5 text-sm text-center normal-case" />
-                <button
-                  onClick={() => { const w=Number(customW),h=Number(customH); if(w>0&&h>0) changeSize({w,h,label:`${w}×${h}mm`}); }}
-                  className="rounded-xl bg-brand-600 text-white px-3 py-1.5 text-xs font-semibold"
-                >Apply</button>
-              </div>
-            )}
-          </div>
-
-          {/* ── COUNT ── */}
-          <div className="flex items-center gap-3 bg-slate-50 rounded-2xl px-4 py-3">
-            <span className="text-sm font-semibold text-slate-700 shrink-0">Labels:</span>
-            <button onClick={() => setCount(c => Math.max(0, c - 1))} className="w-10 h-10 rounded-xl bg-white border-2 border-brand-200 text-brand-700 text-xl font-bold flex items-center justify-center hover:bg-brand-50 touch-manipulation">−</button>
-            <input type="number" value={count} min={0} max={product.quantity} onChange={e => setCount(Math.min(Number(e.target.value), product.quantity))} className="flex-1 text-center text-xl font-black rounded-xl border-2 border-brand-200 py-2 focus:border-brand-500 focus:outline-none normal-case" />
-            <button onClick={() => setCount(c => Math.min(c + 1, product.quantity))} className="w-10 h-10 rounded-xl bg-white border-2 border-brand-200 text-brand-700 text-xl font-bold flex items-center justify-center hover:bg-brand-50 touch-manipulation">+</button>
-            <span className="text-xs text-slate-400 shrink-0">/ {product.quantity}</span>
-          </div>
-
-          {/* ── DOWNLOAD — directly below count ── */}
-          <Button className="w-full py-4 text-lg font-bold rounded-2xl" onClick={downloadPDF} disabled={pdfLoading || count === 0}>
-            <Download className="mr-2 h-5 w-5" />
-            {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
-          </Button>
-
-          {downloaded && (
-            <p className="text-center text-xs text-green-600 font-semibold">
-              ✓ Label already downloaded
-              <button onClick={() => { setDownloaded(false); try { localStorage.removeItem(`label-downloaded-${product.id}`); } catch { /**/ } }} className="ml-2 underline text-slate-400">reset</button>
-            </p>
-          )}
-
-          {/* ── TABS: layout editor (advanced, below download) ── */}
-          <div className="rounded-2xl border border-slate-200 overflow-hidden">
-            {/* Tab headers */}
-            <div className="flex border-b border-slate-200 bg-slate-50">
-              {TABS.map(tab => (
-                <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 py-2.5 text-xs font-semibold transition ${
-                    activeTab === tab.key ? "bg-white text-brand-700 border-b-2 border-brand-600" : "text-slate-500 hover:text-slate-700"
-                  }`}>
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            {/* Tab content */}
-            <div className="p-4 space-y-3">
-              {activeTab === "qr" && (
-                <>
-                  <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Show QR Code</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.qr.visible} onChange={e => patchQr({ visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
-                  {layout.qr.visible && <>
-                    <SliderControl label="X position" value={layout.qr.x} min={0} max={labelSize.w} onChange={v => patchQr({ x: v })} />
-                    <SliderControl label="Y position" value={layout.qr.y} min={0} max={labelSize.h} onChange={v => patchQr({ y: v })} />
-                    <SliderControl label="Size" value={layout.qr.size} min={5} max={Math.min(labelSize.w, labelSize.h)} onChange={v => patchQr({ size: v })} />
-                  </>}
-                </>
-              )}
-              {activeTab === "shop" && (
-                <>
-                  <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Shop Name</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.shopName.visible} onChange={e => patchField("shopName", { visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
-                  {layout.shopName.visible && <>
-                    <SliderControl label="X position" value={layout.shopName.x} min={0} max={labelSize.w} onChange={v => patchField("shopName", { x: v })} />
-                    <SliderControl label="Y position" value={layout.shopName.y} min={0} max={labelSize.h} onChange={v => patchField("shopName", { y: v })} />
-                    <SliderControl label="Font size" value={layout.shopName.fontSize} min={1} max={20} onChange={v => patchField("shopName", { fontSize: v })} />
-                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.shopName.bold} onChange={e => patchField("shopName", { bold: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-600">Bold</span></label>
-                  </>}
-                </>
-              )}
-              {activeTab === "name" && (
-                <>
-                  <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Item Name</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemName.visible} onChange={e => patchField("itemName", { visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
-                  {layout.itemName.visible && <>
-                    <SliderControl label="X position" value={layout.itemName.x} min={0} max={labelSize.w} onChange={v => patchField("itemName", { x: v })} />
-                    <SliderControl label="Y position" value={layout.itemName.y} min={0} max={labelSize.h} onChange={v => patchField("itemName", { y: v })} />
-                    <SliderControl label="Font size" value={layout.itemName.fontSize} min={1} max={20} onChange={v => patchField("itemName", { fontSize: v })} />
-                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemName.bold} onChange={e => patchField("itemName", { bold: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-600">Bold</span></label>
-                  </>}
-                </>
-              )}
-              {activeTab === "code" && (
-                <>
-                  <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Item Code</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemCode.visible} onChange={e => patchField("itemCode", { visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
-                  {layout.itemCode.visible && <>
-                    <SliderControl label="X position" value={layout.itemCode.x} min={0} max={labelSize.w} onChange={v => patchField("itemCode", { x: v })} />
-                    <SliderControl label="Y position" value={layout.itemCode.y} min={0} max={labelSize.h} onChange={v => patchField("itemCode", { y: v })} />
-                    <SliderControl label="Font size" value={layout.itemCode.fontSize} min={1} max={20} onChange={v => patchField("itemCode", { fontSize: v })} />
-                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemCode.bold} onChange={e => patchField("itemCode", { bold: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-600">Bold</span></label>
-                  </>}
-                </>
-              )}
-              <button onClick={resetLayout} className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-slate-400 hover:text-brand-600 border border-slate-200 rounded-xl transition mt-1">
-                <RotateCcw className="h-3 w-3" /> Reset to default layout
-              </button>
-            </div>
-          </div>
-
+      {code && (
+        <div className="text-center text-sm font-mono font-bold text-brand-700 bg-brand-50 rounded-xl py-2">
+          {code}
         </div>
-      </Modal>
-    </>
+      )}
+
+      {/* Live preview */}
+      <div className="flex justify-center bg-slate-50 rounded-2xl p-4 border border-slate-200">
+        {ready && qr ? (
+          <CanvasPreview product={product} qr={qr} size={labelSize} layout={layout} />
+        ) : (
+          <div className="py-10 text-center text-sm text-slate-400">Enter name, purchase price and sell price to see the label</div>
+        )}
+      </div>
+
+      <SizePicker size={labelSize} onChange={changeSize} />
+      <CountControl count={count} setCount={setCount} />
+
+      <Button className="w-full py-4 text-lg font-bold rounded-2xl" onClick={downloadPDF} disabled={pdfLoading || !ready}>
+        <Download className="mr-2 h-5 w-5" />
+        {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
+      </Button>
+
+      {/* Layout editor */}
+      <div className="rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="flex border-b border-slate-200 bg-slate-50">
+          {TABS.map(tab => (
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              className={`flex-1 py-2.5 text-xs font-semibold transition ${
+                activeTab === tab.key ? "bg-white text-brand-700 border-b-2 border-brand-600" : "text-slate-500 hover:text-slate-700"
+              }`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="p-4 space-y-3">
+          {activeTab === "qr" && (
+            <>
+              <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Show QR Code</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.qr.visible} onChange={e => patchQr({ visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
+              {layout.qr.visible && <>
+                <SliderControl label="X position" value={layout.qr.x} min={0} max={labelSize.w} onChange={v => patchQr({ x: v })} />
+                <SliderControl label="Y position" value={layout.qr.y} min={0} max={labelSize.h} onChange={v => patchQr({ y: v })} />
+                <SliderControl label="Size" value={layout.qr.size} min={5} max={Math.min(labelSize.w, labelSize.h)} onChange={v => patchQr({ size: v })} />
+              </>}
+            </>
+          )}
+          {activeTab === "shop" && (
+            <>
+              <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Shop Name</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.shopName.visible} onChange={e => patchField("shopName", { visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
+              {layout.shopName.visible && <>
+                <SliderControl label="X position" value={layout.shopName.x} min={0} max={labelSize.w} onChange={v => patchField("shopName", { x: v })} />
+                <SliderControl label="Y position" value={layout.shopName.y} min={0} max={labelSize.h} onChange={v => patchField("shopName", { y: v })} />
+                <SliderControl label="Font size" value={layout.shopName.fontSize} min={1} max={20} onChange={v => patchField("shopName", { fontSize: v })} />
+                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.shopName.bold} onChange={e => patchField("shopName", { bold: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-600">Bold</span></label>
+              </>}
+            </>
+          )}
+          {activeTab === "name" && (
+            <>
+              <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Item Name</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemName.visible} onChange={e => patchField("itemName", { visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
+              {layout.itemName.visible && <>
+                <SliderControl label="X position" value={layout.itemName.x} min={0} max={labelSize.w} onChange={v => patchField("itemName", { x: v })} />
+                <SliderControl label="Y position" value={layout.itemName.y} min={0} max={labelSize.h} onChange={v => patchField("itemName", { y: v })} />
+                <SliderControl label="Font size" value={layout.itemName.fontSize} min={1} max={20} onChange={v => patchField("itemName", { fontSize: v })} />
+                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemName.bold} onChange={e => patchField("itemName", { bold: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-600">Bold</span></label>
+              </>}
+            </>
+          )}
+          {activeTab === "code" && (
+            <>
+              <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">Item Code</span><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemCode.visible} onChange={e => patchField("itemCode", { visible: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-500">Visible</span></label></div>
+              {layout.itemCode.visible && <>
+                <SliderControl label="X position" value={layout.itemCode.x} min={0} max={labelSize.w} onChange={v => patchField("itemCode", { x: v })} />
+                <SliderControl label="Y position" value={layout.itemCode.y} min={0} max={labelSize.h} onChange={v => patchField("itemCode", { y: v })} />
+                <SliderControl label="Font size" value={layout.itemCode.fontSize} min={1} max={20} onChange={v => patchField("itemCode", { fontSize: v })} />
+                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={layout.itemCode.bold} onChange={e => patchField("itemCode", { bold: e.target.checked })} className="w-4 h-4 accent-brand-600" /><span className="text-sm text-slate-600">Bold</span></label>
+              </>}
+            </>
+          )}
+          <button onClick={() => setLayout(defaultLayout(labelSize))} className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-slate-400 hover:text-brand-600 border border-slate-200 rounded-xl transition mt-1">
+            <RotateCcw className="h-3 w-3" /> Reset to default layout
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ── CUSTOM LABEL PRINTER ─────────────────────────────────────────────────────
-// Opens from My Stock page top. User types saree name + sell price.
-// Label shows: QR | Anu Fashions / saree name / ₹price (no code).
-
+// ── CUSTOM LABEL CREATOR ──────────────────────────────────────────────────────
+// Label shows: QR | Anu Fashions / saree name / ₹price (no item code).
 async function renderCustomCanvas(
   name: string,
   sellPrice: number,
@@ -565,7 +485,6 @@ async function renderCustomCanvas(
 
   const pad = 2.5 * MM;
 
-  // QR encodes saree name + price
   const qrData = `${name} | ${inr(sellPrice)}`;
   const qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 1, color: { dark: "#000", light: "#fff" } });
   const qrSide = Math.round((H - 2 * pad) * 0.95);
@@ -574,7 +493,6 @@ async function renderCustomCanvas(
   await new Promise<void>((res) => { qrImg.onload = () => res(); });
   ctx.drawImage(qrImg, pad, pad + (H - 2 * pad - qrSide) / 2, qrSide, qrSide);
 
-  // Text column
   const textX   = pad + qrSide + 2.5 * MM;
   const textMaxW = W - textX - pad;
   const sc = size.h / 30;
@@ -600,12 +518,10 @@ async function renderCustomCanvas(
 
   let y = pad;
 
-  // Shop name
   ctx.font = `${shopPx}px Arial`;
   ctx.fillText("Anu Fashions", textX, y);
   y += Math.round(shopPx * 1.4);
 
-  // Saree name (wrapped)
   ctx.font = `bold ${namePx}px Arial`;
   for (const line of wrap(name, `bold ${namePx}px Arial`, textMaxW)) {
     ctx.fillText(line, textX, y);
@@ -613,171 +529,55 @@ async function renderCustomCanvas(
   }
   y += Math.round(2 * sc * MM);
 
-  // Price — big and bold
   ctx.font = `bold ${pricePx}px Arial`;
   ctx.fillText(inr(sellPrice), textX, y);
 
   return canvas;
 }
 
-export function CustomLabelPrinter() {
-  const [open, setOpen]             = useState(false);
+export function CustomLabelCreator() {
   const [name, setName]             = useState("");
   const [sellPrice, setSellPrice]   = useState("");
   const [count, setCount]           = useState(1);
   const [labelSize, setLabelSize]   = useState<LabelSize>(DEFAULT_SIZE);
-  const [customW, setCustomW]       = useState(String(DEFAULT_SIZE.w));
-  const [customH, setCustomH]       = useState(String(DEFAULT_SIZE.h));
-  const [showCustom, setShowCustom] = useState(false);
   const [previewSrc, setPreviewSrc] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
 
-  // Regenerate preview whenever inputs change
+  const n = name.trim();
+  const p = Number(sellPrice);
+  const ready = Boolean(n) && p > 0;
+
   useEffect(() => {
-    const n = name.trim();
-    const p = Number(sellPrice);
-    if (!n || !p) { setPreviewSrc(""); return; }
+    if (!ready) { setPreviewSrc(""); return; }
     let cancelled = false;
     renderCustomCanvas(n, p, labelSize).then((c) => {
       if (!cancelled) setPreviewSrc(c.toDataURL("image/png"));
     });
     return () => { cancelled = true; };
-  }, [name, sellPrice, labelSize]);
+  }, [n, p, ready, labelSize]);
 
   const downloadPDF = async () => {
-    const n = name.trim(); const p = Number(sellPrice);
-    if (!n || !p) return;
+    if (!ready) return;
     setPdfLoading(true);
     try {
-      // Build a fake Product-like object for the PDF builder
-      const fakeProduct = { id: "custom", code: "", name: n, sellingPrice: p, quantity: count };
-      const qrData = `${n} | ${inr(p)}`;
-      const qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 1, color: { dark: "#000", light: "#fff" } });
-
-      // Render count pages
-      const MM_TO_PT = 2.8346;
-      const pageW = labelSize.w * MM_TO_PT;
-      const pageH = labelSize.h * MM_TO_PT;
       const pages: Array<{ canvas: HTMLCanvasElement; jpeg: Uint8Array }> = [];
       for (let i = 0; i < count; i++) {
         const canvas = await renderCustomCanvas(n, p, labelSize);
-        const b64 = canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
-        pages.push({ canvas, jpeg: Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)) });
+        pages.push({ canvas, jpeg: canvasToJpeg(canvas) });
       }
-
-      const enc = new TextEncoder();
-      const parts: Uint8Array[] = [];
-      const offsets: number[] = [];
-      let pos = 0;
-      const write = (s: string) => { const b = enc.encode(s); parts.push(b); pos += b.length; };
-      const writeB = (b: Uint8Array) => { parts.push(b); pos += b.length; };
-
-      write("%PDF-1.4\n%\xFF\xFF\xFF\xFF\n");
-      const N = pages.length;
-      const pageBase = 3, contentBase = pageBase + N, imageBase = contentBase + N;
-      offsets[1] = pos; write(`1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n`);
-      offsets[2] = pos;
-      write(`2 0 obj\n<< /Type /Pages /Kids [${Array.from({length:N},(_,i)=>`${pageBase+i} 0 R`).join(" ")}] /Count ${N} >>\nendobj\n`);
-      for (let i = 0; i < N; i++) {
-        const { canvas, jpeg } = pages[i];
-        offsets[pageBase + i] = pos;
-        write(`${pageBase+i} 0 obj\n<< /Type /Page /Parent 2 0 R\n/MediaBox [0 0 ${pageW.toFixed(3)} ${pageH.toFixed(3)}]\n/Contents ${contentBase+i} 0 R\n/Resources << /XObject << /Im1 ${imageBase+i} 0 R >> >>\n>>\nendobj\n`);
-        const stream = `q ${pageW.toFixed(3)} 0 0 ${pageH.toFixed(3)} 0 0 cm /Im1 Do Q`;
-        offsets[contentBase+i] = pos;
-        write(`${contentBase+i} 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`);
-        offsets[imageBase+i] = pos;
-        write(`${imageBase+i} 0 obj\n<< /Type /XObject /Subtype /Image\n/Width ${canvas.width} /Height ${canvas.height}\n/ColorSpace /DeviceRGB /BitsPerComponent 8\n/Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`);
-        writeB(jpeg);
-        write(`\nendstream\nendobj\n`);
-      }
-      const xrefPos = pos;
-      const total = imageBase + N;
-      write(`xref\n0 ${total+1}\n0000000000 65535 f \n`);
-      for (let i = 1; i <= total; i++) write(`${String(offsets[i]??0).padStart(10,"0")} 00000 n \n`);
-      write(`trailer\n<< /Size ${total+1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`);
-      const out = new Uint8Array(parts.reduce((s,p)=>s+p.length,0));
-      let off = 0; for (const p of parts) { out.set(p, off); off += p.length; }
-      const blob = new Blob([out], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url;
-      a.download = `custom-label-${n.replace(/\s+/g,"-")}.pdf`; a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(buildPdf(pages, labelSize), `custom-label-${safeName(n)}.pdf`);
     } finally { setPdfLoading(false); }
   };
 
-  const leftPane = (
+  return (
     <div className="space-y-4">
-      <div>
-        <p className="text-xs font-semibold text-brand-700 mb-1">Saree / Item Name *</p>
-        <input
-          type="text" autoComplete="off" placeholder="e.g. SILVER PATTU"
-          value={name} onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
-        />
-      </div>
-      <div>
-        <p className="text-xs font-semibold text-brand-700 mb-1">Selling Price (₹) *</p>
-        <input
-          type="number" placeholder="0"
-          value={sellPrice} onChange={(e) => setSellPrice(e.target.value)}
-          className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none"
-        />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TextInput label="Saree / Item Name *" value={name} onChange={setName} placeholder="e.g. SILVER PATTU" />
+        <TextInput label="Selling Price (₹) *" value={sellPrice} onChange={setSellPrice} placeholder="0" type="number" />
       </div>
 
-      {/* Label size */}
-      <div className="bg-brand-50 rounded-xl px-3 py-2.5 space-y-2">
-        <p className="text-xs font-bold text-brand-700 uppercase tracking-wide">Label Size</p>
-        <div className="flex flex-wrap gap-1.5">
-          {LABEL_PRESETS.map((p) => (
-            <button key={p.label} onClick={() => { setLabelSize(p); setCustomW(String(p.w)); setCustomH(String(p.h)); }}
-              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition leading-tight ${
-                labelSize.w === p.w && labelSize.h === p.h
-                  ? "bg-brand-700 text-white" : "bg-white text-brand-700 border border-brand-200 hover:border-brand-400"
-              }`}>{p.label}</button>
-          ))}
-        </div>
-        <button onClick={() => setShowCustom(v => !v)} className="text-xs text-brand-600 flex items-center gap-1">
-          <Settings2 className="h-3 w-3" /> Custom
-        </button>
-        {showCustom && (
-          <div className="flex items-center gap-2 pt-1 border-t border-brand-100">
-            <span className="text-xs text-slate-500">W:</span>
-            <input type="number" value={customW} onChange={(e) => setCustomW(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
-            <span className="text-xs text-slate-500">H:</span>
-            <input type="number" value={customH} onChange={(e) => setCustomH(e.target.value)} className="w-14 rounded-lg border border-brand-200 px-2 py-1 text-sm text-center" />
-            <button onClick={() => { const w=Number(customW),h=Number(customH); if(w>0&&h>0) setLabelSize({w,h,label:`${w}×${h}mm`}); }}
-              className="rounded-lg bg-brand-700 text-white px-3 py-1 text-xs font-semibold">Apply</button>
-          </div>
-        )}
-      </div>
-
-      {/* Count */}
-      <div>
-        <p className="text-xs font-semibold text-brand-700 mb-1">Number of Labels</p>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setCount(c => Math.max(1, c - 1))} className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100">−</button>
-          <input type="number" min={1} value={count} onChange={(e) => setCount(Math.max(1, Number(e.target.value)))}
-            className="flex-1 text-center text-base font-bold rounded-xl border border-brand-200 py-2 focus:border-brand-500 focus:outline-none" />
-          <button onClick={() => setCount(c => c + 1)} className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-lg font-bold flex items-center justify-center hover:bg-brand-100">+</button>
-        </div>
-      </div>
-
-      <Button
-        className="w-full py-3"
-        onClick={downloadPDF}
-        disabled={pdfLoading || !name.trim() || !Number(sellPrice)}
-      >
-        <Download className="mr-2 h-4 w-4" />
-        {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
-      </Button>
-    </div>
-  );
-
-  const rightPane = (
-    <div className="space-y-3">
-      <p className="text-xs font-bold text-brand-700 uppercase tracking-wide">Live Preview</p>
-      {previewSrc ? (
-        <div className="flex justify-center">
+      <div className="flex justify-center bg-slate-50 rounded-2xl p-4 border border-slate-200">
+        {previewSrc ? (
           <img
             src={previewSrc}
             style={{
@@ -787,12 +587,19 @@ export function CustomLabelPrinter() {
             }}
             alt="label preview"
           />
-        </div>
-      ) : (
-        <div className="rounded-xl border-2 border-dashed border-brand-200 p-10 text-center">
-          <p className="text-sm text-slate-400">Enter a name and price to see the preview</p>
-        </div>
-      )}
+        ) : (
+          <div className="py-10 text-center text-sm text-slate-400">Enter a name and price to see the preview</div>
+        )}
+      </div>
+
+      <SizePicker size={labelSize} onChange={setLabelSize} />
+      <CountControl count={count} setCount={setCount} />
+
+      <Button className="w-full py-4 text-lg font-bold rounded-2xl" onClick={downloadPDF} disabled={pdfLoading || !ready}>
+        <Download className="mr-2 h-5 w-5" />
+        {pdfLoading ? "Building PDF…" : `Download ${count} Label${count !== 1 ? "s" : ""} as PDF`}
+      </Button>
+
       <div className="bg-brand-50 rounded-xl p-3 space-y-1 text-xs text-slate-600">
         <p className="font-semibold text-brand-800 text-sm">What's on this label:</p>
         <p>✓ QR code (encodes name + price)</p>
@@ -803,31 +610,4 @@ export function CustomLabelPrinter() {
       </div>
     </div>
   );
-
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-brand-700 bg-white border border-brand-200 rounded-xl hover:bg-brand-50 transition"
-      >
-        <Tag className="h-4 w-4" />
-        Custom Label
-      </button>
-
-      <TwoPane
-        open={open}
-        onClose={() => setOpen(false)}
-        title="Custom Label / కస్టమ్ లేబుల్"
-        leftLabel="Label Details"
-        rightLabel="Preview"
-        leftPane={leftPane}
-        rightPane={rightPane}
-      />
-    </>
-  );
-}
-
-// Keep old export for any legacy usage (no-op, just redirects)
-export function LabelPrinter({ products }: { products: Product[] }) {
-  return null;
 }
