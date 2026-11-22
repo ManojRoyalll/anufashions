@@ -67,8 +67,8 @@ function drawFloralBorder(ctx: CanvasRenderingContext2D, W: number, H: number, u
   const pink = "#c2185b";
   const leaf = "#5a8f52";
 
-  const m = u * 3;            // outer margin
-  const r = u * 3;            // corner radius
+  const m = u * 1.6;          // outer margin (kept close to the edge)
+  const r = u * 2;            // corner radius
 
   // Keep the decoration soft so it never competes with the text
   ctx.save();
@@ -88,7 +88,7 @@ function drawFloralBorder(ctx: CanvasRenderingContext2D, W: number, H: number, u
   ctx.strokeStyle = gold; ctx.lineWidth = u * 0.55;
   roundRect(m, m, W - 2 * m, H - 2 * m, r); ctx.stroke();
   ctx.strokeStyle = pink; ctx.lineWidth = u * 0.2;
-  roundRect(m + u * 1.1, m + u * 1.1, W - 2 * (m + u * 1.1), H - 2 * (m + u * 1.1), r); ctx.stroke();
+  roundRect(m + u * 0.8, m + u * 0.8, W - 2 * (m + u * 0.8), H - 2 * (m + u * 0.8), r); ctx.stroke();
 
   // A little flower with petals + a leaf
   const flower = (cx: number, cy: number, s: number) => {
@@ -115,12 +115,12 @@ function drawFloralBorder(ctx: CanvasRenderingContext2D, W: number, H: number, u
     ctx.restore();
   };
 
-  const s = u * 1.05;
+  const s = u * 0.95;
   const corners: [number, number, number][] = [
-    [m + u * 1.2, m + u * 1.2, 0],
-    [W - m - u * 1.2, m + u * 1.2, Math.PI / 2],
-    [m + u * 1.2, H - m - u * 1.2, -Math.PI / 2],
-    [W - m - u * 1.2, H - m - u * 1.2, Math.PI],
+    [m + u * 0.8, m + u * 0.8, 0],
+    [W - m - u * 0.8, m + u * 0.8, Math.PI / 2],
+    [m + u * 0.8, H - m - u * 0.8, -Math.PI / 2],
+    [W - m - u * 0.8, H - m - u * 0.8, Math.PI],
   ];
   for (const [cx, cy, rot] of corners) {
     leafShape(cx + Math.cos(rot + 0.6) * s * 1.6, cy + Math.sin(rot + 0.6) * s * 1.6, s, rot + 0.6);
@@ -138,7 +138,7 @@ function safeName(name: string) {
 // Layout: decorative floral/plant border, a lady in saree on the right, and
 // three stacked text lines on the left — Anu Fashions / item name / bottom line.
 function renderDesignedLabel(
-  opts: { name: string; bottom: string; bottomCaption?: string },
+  opts: { name: string; bottom: string },
   size: LabelSize,
 ): HTMLCanvasElement {
   const DPI = 300;
@@ -189,7 +189,6 @@ function renderDesignedLabel(
 
   const shopPx    = px(7.0 * sc);
   const namePx    = px(5.5 * sc);
-  const captionPx = px(3.2 * sc);
   const bottomPx  = px(8.0 * sc);
 
   // Vertically center the whole text block
@@ -200,7 +199,6 @@ function renderDesignedLabel(
     Math.round(shopPx * 1.5) +
     nameLines.length * nameLineH +
     Math.round(4 * sc * MM) +
-    (opts.bottomCaption ? Math.round(captionPx * 1.4) : 0) +
     Math.round(bottomPx * 1.1);
   let y = Math.max(pad + px(1.5 * sc), (H - blockH) / 2);
 
@@ -217,15 +215,7 @@ function renderDesignedLabel(
     ctx.fillText(line, textX, y);
     y += nameLineH;
   }
-  y += Math.round(3 * sc * MM);
-
-  // Caption (e.g. "Bill Code" / "Price")
-  if (opts.bottomCaption) {
-    ctx.fillStyle = "#9ca3af";
-    ctx.font = `${captionPx}px Arial`;
-    ctx.fillText(opts.bottomCaption.toUpperCase(), textX, y);
-    y += Math.round(captionPx * 1.4);
-  }
+  y += Math.round(4 * sc * MM);
 
   // Bottom line — bold (bill code or price). Shrink to fit the text column.
   let fitPx = bottomPx;
@@ -390,8 +380,7 @@ function entryPayload(e: { variant: LabelVariant; name: string; code: string; pr
   const bottom = e.variant === "code"
     ? e.code.trim()
     : (Number(e.price) > 0 ? inr(Number(e.price)) : "");
-  const bottomCaption = e.variant === "code" ? "Item Bill Code" : "Price";
-  return { name: e.name.trim() || "Item Name", bottom: bottom || "—", bottomCaption };
+  return { name: e.name.trim() || "Item Name", bottom: bottom || "—" };
 }
 
 function downloadEntry(e: HistoryEntry) {
@@ -424,10 +413,9 @@ export function LabelCreator({ variant, initial }: { variant: LabelVariant; init
   const bottom = variant === "code"
     ? code.trim()
     : (Number(price) > 0 ? inr(Number(price)) : "");
-  const bottomCaption = variant === "code" ? "Item Bill Code" : "Price";
   const ready = Boolean(name.trim()) && Boolean(bottom);
 
-  const payload = useMemo(() => ({ name: name.trim() || "Item Name", bottom: bottom || "—", bottomCaption }), [name, bottom, bottomCaption]);
+  const payload = useMemo(() => ({ name: name.trim() || "Item Name", bottom: bottom || "—" }), [name, bottom]);
 
   // Live preview
   useEffect(() => {
