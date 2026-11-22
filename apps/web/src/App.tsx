@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Tag, RotateCw } from "lucide-react";
-import { LabelCreator, LabelHistory, type HistoryEntry } from "@/components/ui/label-printer";
+import { LabelCreator, LabelHistory } from "@/components/ui/label-printer";
+import { type HistoryEntry } from "@/lib/history";
 
 type Mode = "code" | "price" | "history";
 

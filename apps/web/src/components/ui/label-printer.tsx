@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, Sparkles, ChevronDown, Trash2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inr, generateItemCode } from "@/lib/utils";
+import {
+  type LabelSize, type LabelVariant, type HistoryEntry,
+  listHistory, addHistory, removeHistory, clearHistory,
+} from "@/lib/history";
 
-type LabelSize = { w: number; h: number; label: string };
 const DEFAULT_SIZE: LabelSize = { label: "Josh Standard (100×50mm)", w: 100, h: 50 };
 
 // ── DECORATIVE LADY IN SAREE (vector silhouette, print-crisp) ─────────────────
@@ -382,36 +385,7 @@ function Preview({ src, size }: { src: string; size: LabelSize }) {
   );
 }
 
-// ── LABEL HISTORY (localStorage) ──────────────────────────────────────────────
-export type LabelVariant = "code" | "price";
-export type HistoryEntry = {
-  id: string; ts: number; variant: LabelVariant;
-  name: string; code: string; price: string;
-  size: LabelSize; count: number;
-};
-
-const HISTORY_KEY = "label-history";
-
-export function getHistory(): HistoryEntry[] {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); }
-  catch { return []; }
-}
-function saveHistory(list: HistoryEntry[]) {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 100))); } catch { /* ignore */ }
-}
-function addToHistory(e: Omit<HistoryEntry, "id" | "ts">): HistoryEntry[] {
-  const entry: HistoryEntry = { ...e, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ts: Date.now() };
-  const list = [entry, ...getHistory()];
-  saveHistory(list);
-  return list;
-}
-function removeFromHistory(id: string): HistoryEntry[] {
-  const list = getHistory().filter(x => x.id !== id);
-  saveHistory(list);
-  return list;
-}
-function clearHistory(): HistoryEntry[] { saveHistory([]); return []; }
-
+// ── LABEL HISTORY (Supabase-backed, see @/lib/history) ────────────────────────
 function entryPayload(e: { variant: LabelVariant; name: string; code: string; price: string }) {
   const bottom = e.variant === "code"
     ? e.code.trim()
@@ -476,7 +450,7 @@ export function LabelCreator({ variant, initial }: { variant: LabelVariant; init
         pages.push({ canvas, jpeg: canvasToJpeg(canvas) });
       }
       downloadBlob(buildPdf(pages, size), `${safeName(name)}-labels.pdf`);
-      addToHistory({
+      await addHistory({
         variant, name: name.trim(),
         code: variant === "code" ? code.trim() : "",
         price: variant === "price" ? price : "",
@@ -579,14 +553,36 @@ function HistoryCard({ entry, onReuse, onDelete }: {
 }
 
 export function LabelHistory({ onReuse }: { onReuse: (e: HistoryEntry) => void }) {
-  const [list, setList] = useState<HistoryEntry[]>(() => getHistory());
+  const [list, setList] = useState<HistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = () => {
+    setLoading(true);
+    listHistory().then((l) => { setList(l); setLoading(false); });
+  };
+  useEffect(refresh, []);
+
+  const handleDelete = async (id: string) => {
+    setList((l) => l.filter((x) => x.id !== id));
+    await removeHistory(id);
+  };
+  const handleClear = async () => {
+    setList([]);
+    await clearHistory();
+  };
+
+  if (loading) {
+    return (
+      <div className="py-16 text-center text-sm text-slate-400">Loading saved labels…</div>
+    );
+  }
 
   if (list.length === 0) {
     return (
       <div className="rounded-2xl border-2 border-dashed border-brand-200 py-16 px-6 text-center">
         <Clock className="h-10 w-10 mx-auto text-brand-300" />
         <p className="mt-3 font-semibold text-slate-600">No labels yet</p>
-        <p className="text-sm text-slate-400">Labels you download are saved here so you can reprint them anytime.</p>
+        <p className="text-sm text-slate-400">Labels you download are saved here so you can reprint them from any device.</p>
       </div>
     );
   }
@@ -595,12 +591,12 @@ export function LabelHistory({ onReuse }: { onReuse: (e: HistoryEntry) => void }
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-600">{list.length} saved label{list.length !== 1 ? "s" : ""}</p>
-        <button onClick={() => setList(clearHistory())} className="text-xs font-semibold text-slate-400 hover:text-red-600">
+        <button onClick={handleClear} className="text-xs font-semibold text-slate-400 hover:text-red-600">
           Clear all
         </button>
       </div>
       {list.map((e) => (
-        <HistoryCard key={e.id} entry={e} onReuse={onReuse} onDelete={() => setList(removeFromHistory(e.id))} />
+        <HistoryCard key={e.id} entry={e} onReuse={onReuse} onDelete={() => handleDelete(e.id)} />
       ))}
     </div>
   );
